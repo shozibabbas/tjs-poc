@@ -1,34 +1,32 @@
 "use server";
 import OpenAI from "openai";
 import {prisma, purgeExpiredReports, REPORT_TTL_MS} from "@/lib/prisma";
+import {toDataUrlFromBlobUrl} from "@/lib/fetchInline";
 
 export type ActionState = { ok: boolean; message: string; id?: string };
 
-function fileToDataUrl(file: File): Promise<{ dataUrl: string; mime: string; name: string }> {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const buf = Buffer.from(await file.arrayBuffer());
-            const mime =
-                file.type ||
-                (file.name.toLowerCase().endsWith(".pdf")
-                    ? "application/pdf"
-                    : file.name.toLowerCase().match(/\.(png|jpg|jpeg)$/)
-                        ? `image/${RegExp.$1 === "jpg" ? "jpeg" : RegExp.$1}`
-                        : "application/octet-stream");
-            const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
-            resolve({ dataUrl, mime, name: file.name });
-        } catch (e) {
-            reject(e);
+async function buildVisionInputs(blobUrls: string[]) {
+    const results = await Promise.all(blobUrls.map((u) => toDataUrlFromBlobUrl(u)));
+
+    // Convert into Responses API content items
+    const mediaParts: any[] = [];
+    for (const r of results) {
+        if (r.type === "image" && r.dataUrl) {
+            mediaParts.push({ type: "input_image", image_url: r.dataUrl });
+        } else if (r.type === "pdf" && r.url) {
+            // If you want to inline PDF pages too, we can do that later; for now keep URL with ?download=1
+            mediaParts.push({ type: "input_image", image_url: r.url });
         }
-    });
+    }
+    return mediaParts;
 }
 
 async function askOpenAI({
                              prefs,
-                             blobUrls,
+                             mediaParts,
                          }: {
     prefs: Record<string, any>;
-    blobUrls: string[];
+    mediaParts: any[]; // from buildVisionInputs
 }) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -82,7 +80,7 @@ async function askOpenAI({
                 "Student preferences (JSON):\n\n" +
                 JSON.stringify(prefs, null, 2),
         },
-        ...blobUrls.map((url) => ({ type: "input_image", image_url: url })),
+        ...mediaParts,
     ];
 
     const resp = await client.responses.create({
@@ -99,6 +97,7 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
             return { ok: false, message: "OPENAI_API_KEY is missing on the server." };
         }
 
+        // Blob URLs from client (already uploaded to Vercel Blob)
         const blobUrls = formData.getAll("blobUrls").map(String);
         if (!blobUrls.length) {
             return { ok: false, message: "Please upload marksheets before continuing." };
@@ -121,19 +120,18 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
                 topPriorities: formData.get("topPriorities"),
                 extras: formData.get("extras"),
             },
-            // Optionally store the uploaded URLs with the report for reference
             attachments: blobUrls,
         };
 
-        const answer = await askOpenAI({ prefs, blobUrls });
+        // 🔐 Transform: download + inline images, pass PDFs as URLs with ?download=1
+        const mediaParts = await buildVisionInputs(blobUrls);
+
+        const answer = await askOpenAI({ prefs, mediaParts });
 
         await purgeExpiredReports();
         const id = (
             await prisma.report.create({
-                data: {
-                    markdown: answer,
-                    expiresAt: new Date(Date.now() + REPORT_TTL_MS),
-                },
+                data: { markdown: answer, expiresAt: new Date(Date.now() + REPORT_TTL_MS) },
                 select: { id: true },
             })
         ).id;
@@ -141,7 +139,13 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
         return { ok: true, message: answer, id };
     } catch (err: any) {
         console.error(err);
-        console.error(JSON.stringify(err, null, 2));
+        // Helpful error message if Blob fetch/transform failed
+        if (String(err?.message || "").includes("Fetch failed")) {
+            return { ok: false, message: "We couldn’t read one of the uploaded files. Please re-upload clear JPG/PNG/PDF files." };
+        }
+        if (String(err?.name) === "AbortError") {
+            return { ok: false, message: "File download timed out. Please try again, or upload a smaller image/PDF." };
+        }
         return { ok: false, message: `Error: ${err?.message ?? "Unknown error"}` };
     }
 }

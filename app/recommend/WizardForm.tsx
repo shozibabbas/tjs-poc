@@ -260,7 +260,6 @@ export function WizardForm() {
             </div>
 
             <div className="flex justify-between">
-                {uploading && <p className="text-sm text-slate-600">Uploading… {uploadProgress}%</p>}
                 <button
                     disabled={step === 0}
                     onClick={handleBack}
@@ -268,6 +267,7 @@ export function WizardForm() {
                 >
                     Back
                 </button>
+                {uploading && <p className="text-sm text-slate-600">Uploading… {uploadProgress}%</p>}
                 <button
                     onClick={handleNext}
                     disabled={step === 0 && (uploading || !files.length)}
