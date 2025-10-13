@@ -5,6 +5,7 @@ import { analyze } from "./actions";
 import { LoaderOverlay } from "./LoaderOverlay";
 import { ReportView } from "../report/[id]/ReportView";
 import { useRouter, useSearchParams } from "next/navigation";
+import {upload} from "@vercel/blob/client";
 
 const QUESTIONS = [
     {
@@ -99,7 +100,12 @@ export function WizardForm() {
     const [isPending, startTransition] = useTransition();
     const [step, setStep] = useState(0);
     const [answers, setAnswers] = useState<Record<string, any>>({});
+
+    // local files and uploaded blobs
     const [files, setFiles] = useState<File[]>([]);
+    const [blobUrls, setBlobUrls] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
 
     const router = useRouter();
 
@@ -108,12 +114,55 @@ export function WizardForm() {
 
     useEffect(() => {
         const s = state as any;
-        if (state?.ok && s?.id) {
-            router.push(`/report/${s.id}`);
-        }
+        if (state?.ok && s?.id) router.push(`/report/${s.id}`);
     }, [state, router]);
 
-    function handleNext() {
+
+    async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const list = e.target.files ? Array.from(e.target.files) : [];
+        setFiles(list);
+        setBlobUrls([]); // reset
+    }
+
+    // Upload all selected files to Vercel Blob
+    async function uploadAllToBlob() {
+        if (!files.length) return;
+        setUploading(true);
+        setUploadProgress(0);
+
+        const urls: string[] = [];
+        let uploadedBytes = 0;
+        const totalBytes = files.reduce((a, f) => a + f.size, 0);
+
+        for (const f of files) {
+            const res = await upload(f.name, f, {
+                access: "public",
+                handleUploadUrl: "/api/blob/upload",
+                onUploadProgress: ({ loaded: uploaded, total }) => {
+                    // Per-file progress; we’ll derive global progress
+                    const delta = uploaded - (uploadedBytes % (f.size + 1));
+                    uploadedBytes += delta > 0 ? delta : 0;
+                    const pct = Math.min(100, Math.round((uploadedBytes / (totalBytes || 1)) * 100));
+                    setUploadProgress(pct);
+                },
+            });
+            urls.push(res.url);
+        }
+
+        setBlobUrls(urls);
+        setUploading(false);
+    }
+
+    async function handleNext() {
+        if (step === 0) {
+            // Step 0 is “Upload marksheets”
+            if (!files.length) return;
+            await uploadAllToBlob();
+            if (!blobUrls.length) {
+                // `uploadAllToBlob` sets blobUrls asynchronously, wait one tick
+                await new Promise((r) => setTimeout(r, 0));
+            }
+        }
         if (step < QUESTIONS.length - 1) setStep(step + 1);
         else handleSubmit();
     }
@@ -126,25 +175,20 @@ export function WizardForm() {
         setAnswers((prev) => ({ ...prev, [key]: value }));
     }
 
-    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const list = e.target.files ? Array.from(e.target.files) : [];
-        setFiles(list);
-    }
-
     function handleSubmit() {
         const fd = new FormData();
         for (const [k, v] of Object.entries(answers)) {
             if (Array.isArray(v)) v.forEach((val) => fd.append(k, val));
             else fd.append(k, v ?? "");
         }
-        files.forEach((f) => fd.append("marksheets", f));
+        blobUrls.forEach((url) => fd.append("blobUrls", url)); // NEW ✅
 
         startTransition(() => formAction(fd));
     }
 
     const estimatedSeconds =
         files.length > 0
-            ? Math.min(30 + files.reduce((a, f) => a + f.size / 1000000, 0) * 5, 90)
+            ? Math.min(30 + files.reduce((a, f) => a + f.size / 1_000_000, 0) * 5, 120)
             : 30;
 
     // Show loader during analyze
@@ -216,6 +260,7 @@ export function WizardForm() {
             </div>
 
             <div className="flex justify-between">
+                {uploading && <p className="text-sm text-slate-600">Uploading… {uploadProgress}%</p>}
                 <button
                     disabled={step === 0}
                     onClick={handleBack}
@@ -225,7 +270,8 @@ export function WizardForm() {
                 </button>
                 <button
                     onClick={handleNext}
-                    className="rounded-md bg-rose-700 px-5 py-2 text-sm font-semibold text-white hover:bg-rose-800"
+                    disabled={step === 0 && (uploading || !files.length)}
+                    className="rounded-md bg-rose-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
                     {step === QUESTIONS.length - 1 ? "Generate Report" : "Next"}
                 </button>

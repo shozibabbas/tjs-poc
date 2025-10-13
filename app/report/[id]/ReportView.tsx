@@ -5,22 +5,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
-import { jsPDF } from "jspdf";
 
 export function ReportView({ markdown }: { markdown: string }) {
     const components = useMemo(
         () => ({
             h1: (props: any) => (
-                <h1
-                    {...props}
-                    className="mb-4 mt-2 text-3xl font-extrabold leading-tight text-rose-800"
-                />
+                <h1 {...props} className="mb-4 mt-2 text-3xl font-extrabold leading-tight text-rose-800 brand-accent" />
             ),
             h2: (props: any) => (
-                <h2
-                    {...props}
-                    className="mb-3 mt-8 border-b border-rose-100 pb-1 text-2xl font-bold text-rose-700"
-                />
+                <h2 {...props} className="mb-3 mt-8 border-b border-rose-100 pb-1 text-2xl font-bold text-rose-700 brand-accent" />
             ),
             h3: (props: any) => (
                 <h3
@@ -71,19 +64,6 @@ export function ReportView({ markdown }: { markdown: string }) {
         []
     );
 
-    function exportPDF() {
-        const doc = new jsPDF({ unit: "pt", format: "a4" });
-        const el = document.getElementById("report-shell");
-        if (!el) return;
-        doc.html(el, {
-            callback: (d) => d.save("TJS-StudySteps-Report.pdf"),
-            x: 24,
-            y: 24,
-            width: 547, // 595pt page width - ~2*24pt margins
-            windowWidth: 1024,
-        });
-    }
-
     return (
         <div className="relative">
             {/* Brand header */}
@@ -108,10 +88,7 @@ export function ReportView({ markdown }: { markdown: string }) {
             >
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[
-                        rehypeSlug,
-                        [rehypeAutolinkHeadings, { behavior: "wrap" }],
-                    ]}
+                    rehypePlugins={[rehypeSlug, [rehypeAutolinkHeadings, { behavior: "wrap" }]]}
                     components={components}
                 >
                     {markdown}
@@ -127,15 +104,9 @@ export function ReportView({ markdown }: { markdown: string }) {
                 <div className="mt-5 flex flex-wrap items-center justify-end gap-2 print:hidden">
                     <button
                         onClick={() => window.print()}
-                        className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
-                    >
-                        Print
-                    </button>
-                    <button
-                        onClick={exportPDF}
                         className="rounded-md bg-rose-700 px-5 py-2 text-sm font-semibold text-white hover:bg-rose-800"
                     >
-                        Export PDF
+                        Print
                     </button>
                 </div>
             </div>

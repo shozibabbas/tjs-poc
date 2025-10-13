@@ -25,10 +25,10 @@ function fileToDataUrl(file: File): Promise<{ dataUrl: string; mime: string; nam
 
 async function askOpenAI({
                              prefs,
-                             marksheets,
+                             blobUrls,
                          }: {
     prefs: Record<string, any>;
-    marksheets: Array<{ dataUrl: string; mime: string; name: string }>;
+    blobUrls: string[];
 }) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -82,11 +82,8 @@ async function askOpenAI({
                 "Student preferences (JSON):\n\n" +
                 JSON.stringify(prefs, null, 2),
         },
+        ...blobUrls.map((url) => ({ type: "input_image", image_url: url })),
     ];
-
-    for (const f of marksheets) {
-        content.push({ type: "input_image", image_url: f.dataUrl });
-    }
 
     const resp = await client.responses.create({
         model: "gpt-4o-mini",
@@ -102,12 +99,11 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
             return { ok: false, message: "OPENAI_API_KEY is missing on the server." };
         }
 
-        // 1) Files (required)
-        const fileInputs = formData.getAll("marksheets") as File[];
-        if (!fileInputs.length) return { ok: false, message: "Please attach at least one marksheet (PDF/JPG/PNG)." };
-        const marksheets = await Promise.all(fileInputs.map(fileToDataUrl));
+        const blobUrls = formData.getAll("blobUrls").map(String);
+        if (!blobUrls.length) {
+            return { ok: false, message: "Please upload marksheets before continuing." };
+        }
 
-        // 2) Preferences/goals only (no academics)
         const prefs = {
             preferences: {
                 stream: formData.getAll("stream"),
@@ -125,12 +121,12 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
                 topPriorities: formData.get("topPriorities"),
                 extras: formData.get("extras"),
             },
+            // Optionally store the uploaded URLs with the report for reference
+            attachments: blobUrls,
         };
 
-        // 3) Ask the model (you already have the improved prompt)
-        const answer = await askOpenAI({ prefs, marksheets });
+        const answer = await askOpenAI({ prefs, blobUrls });
 
-        // 4) Persist report with TTL
         await purgeExpiredReports();
         const id = (
             await prisma.report.create({
@@ -145,6 +141,7 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
         return { ok: true, message: answer, id };
     } catch (err: any) {
         console.error(err);
+        console.error(JSON.stringify(err, null, 2));
         return { ok: false, message: `Error: ${err?.message ?? "Unknown error"}` };
     }
 }
