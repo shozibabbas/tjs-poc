@@ -1,16 +1,18 @@
-import { ClientForm } from "./ClientForm";
+import { WizardForm } from "./WizardForm";
 
 export default function RecommendPage() {
     return (
-        <main className="mx-auto max-w-5xl p-6">
-            <h1 className="mb-2 text-2xl font-bold">Programme & University Recommender</h1>
-            <p className="mb-6 text-sm text-gray-600">
-                Fill in the questionnaire and get a personalised list of top 5 programmes and Malaysian universities.
-            </p>
-            <ClientForm />
-            <footer className="mt-8 text-xs text-gray-500">
-                Powered by OpenAI API. Ensure <code>OPENAI_API_KEY</code> is set.
-            </footer>
-        </main>
+        <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
+            <div className="mx-auto max-w-3xl p-6 md:p-10">
+                <h1 className="text-3xl font-bold text-center mb-2 text-rose-800">
+                    Find Your Perfect Study Path
+                </h1>
+                <p className="text-center text-slate-600 mb-8">
+                    Upload your marksheets and answer a few simple questions — TJS StudySteps will
+                    prepare a personalized study pathway and university report for you.
+                </p>
+                <WizardForm />
+            </div>
+        </div>
     );
 }

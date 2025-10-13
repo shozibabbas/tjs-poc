@@ -1,8 +1,8 @@
 "use server";
-
 import OpenAI from "openai";
+import {prisma, purgeExpiredReports, REPORT_TTL_MS} from "@/lib/prisma";
 
-export type ActionState = { ok: boolean; message: string };
+export type ActionState = { ok: boolean; message: string; id?: string };
 
 function fileToDataUrl(file: File): Promise<{ dataUrl: string; mime: string; name: string }> {
     return new Promise(async (resolve, reject) => {
@@ -36,21 +36,50 @@ async function askOpenAI({
         {
             type: "input_text",
             text:
-                "You are an experienced Malaysian higher-education counsellor. " +
-                "Extract subject-wise marks/grades, years, attempt(s), and board from the ATTACHED MARKSHEETS (images or PDFs). " +
-                "Combine that with the student's preferences to produce the TOP 5 bachelor programmes and the best-fit Malaysian universities. " +
-                "Output MARKDOWN with sections:\n" +
-                "1) Summary\n" +
-                "2) Strengths from marks (per subject)\n" +
-                "3) Top 5 Matches (for each: Programme • 3–5 Universities • Why fit • Entry expectations • Est. annual tuition band • Next intake)\n" +
-                "4) Gaps/Missing info\n" +
-                "5) Next Steps (IELTS/alternatives, scholarships pointers, documents checklist).\n" +
-                "If multiple boards (e.g., SSC/HSSC, O/A Levels), consider all.",
+                "ROLE: You are the world's best student counselling expert for Malaysian universities.\n" +
+                "TASK: Read the ATTACHED MARKSHEETS (images/PDFs). Extract subject-wise scores, grades, board, years, attempts; " +
+                "combine with the student's preferences below. Produce a polished, human-readable COUNSELLING REPORT in GitHub-flavored Markdown.\n\n" +
+                "STRICT FORMATTING RULES:\n" +
+                "• Use clear paragraphs with blank lines between them. No code blocks.\n" +
+                "• Use H1–H3 headings, bullet lists, numbered lists, and tables where helpful.\n" +
+                "• Keep sections short but meaningful; avoid walls of text.\n" +
+                "• Use callouts (blockquotes) sparingly for important notes.\n" +
+                "• Include horizontal rules (---) to separate major sections.\n" +
+                "• Prefer concise bullets for recommendations; use tables for Top 5 summary.\n\n" +
+                "REPORT OUTLINE (must follow, but feel free to improve wording):\n" +
+                "# TJS StudySteps — Personalized Programme & University Report\n\n" +
+                "a detail on who is it prepared for\n" +
+                "## Purpose & How To Use This Report\n" +
+                "Explain in 2–4 short paragraphs WHY this report exists: to map the student's actual marks + preferences to a realistic, " +
+                "high-fit set of Bachelor programmes in Malaysia and top universities, to guide next steps (not a guarantee of admission).\n\n" +
+                "## Snapshot Summary (Key Takeaways)\n" +
+                "• 3–6 bullets: core strengths, likely programme direction, estimated budget band, next intake window, any quick flags.\n\n" +
+                "## Strengths from Mark Sheets\n" +
+                "Summarize subject-wise performance as bullets or a small table (Subject | Observed Mark/Grade | Comment).\n\n" +
+                "## Top 5 Best-Fit Options (Programme → Universities)\n" +
+                "For each of the 5 options, provide:\n" +
+                "### Programme Name\n" +
+                "- Why this fits (2–5 bullets)\n" +
+                "- Suggested universities (3–5) with brief one-liners\n" +
+                "- Entry expectations (typical requirements)\n" +
+                "- Estimated annual tuition band (MYR)\n" +
+                "- Next intake month(s)\n\n" +
+                "Also include a compact table at the end of this section summarizing the five options (Programme | 3–5 Universities | Fit Notes | Tuition Band | Next Intake).\n\n" +
+                "## City & Lifestyle Fit\n" +
+                "Map the student's preference (KL, Penang, Johor, Any) with 3–5 concise bullets.\n\n" +
+                "## Scholarships & English Pathways\n" +
+                "Brief pointers (IELTS or accepted alternatives), scholarship tips, merit possibilities.\n\n" +
+                "## What’s Missing / Assumptions\n" +
+                "Bullet what would improve accuracy (e.g., unclear grades, budget range, subject details).\n\n" +
+                "## Action Plan (Next 2–4 Weeks)\n" +
+                "Numbered steps: verify scores, shortlist 2–3 programmes, prepare documents, apply, schedule counselling call.\n\n" +
+                "---\n" +
+                "_Prepared by **TJS StudySteps** using AI-assisted analysis. This is an advisory tool; admission/scholarship outcomes are not guaranteed._\n",
         },
         {
             type: "input_text",
             text:
-                "Student preferences (JSON). Use these to tailor city, budget, mobility, learning style, and career orientation:\n\n" +
+                "Student preferences (JSON):\n\n" +
                 JSON.stringify(prefs, null, 2),
         },
     ];
@@ -73,12 +102,12 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
             return { ok: false, message: "OPENAI_API_KEY is missing on the server." };
         }
 
-        // 1) Collect marksheets
+        // 1) Files (required)
         const fileInputs = formData.getAll("marksheets") as File[];
         if (!fileInputs.length) return { ok: false, message: "Please attach at least one marksheet (PDF/JPG/PNG)." };
         const marksheets = await Promise.all(fileInputs.map(fileToDataUrl));
 
-        // 2) Collect only preferences/goals (no academic fields)
+        // 2) Preferences/goals only (no academics)
         const prefs = {
             preferences: {
                 stream: formData.getAll("stream"),
@@ -98,9 +127,22 @@ export async function analyze(_: ActionState, formData: FormData): Promise<Actio
             },
         };
 
-        // 3) Ask OpenAI with files + preferences
+        // 3) Ask the model (you already have the improved prompt)
         const answer = await askOpenAI({ prefs, marksheets });
-        return { ok: true, message: answer };
+
+        // 4) Persist report with TTL
+        await purgeExpiredReports();
+        const id = (
+            await prisma.report.create({
+                data: {
+                    markdown: answer,
+                    expiresAt: new Date(Date.now() + REPORT_TTL_MS),
+                },
+                select: { id: true },
+            })
+        ).id;
+
+        return { ok: true, message: answer, id };
     } catch (err: any) {
         console.error(err);
         return { ok: false, message: `Error: ${err?.message ?? "Unknown error"}` };
