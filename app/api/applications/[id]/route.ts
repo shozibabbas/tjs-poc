@@ -44,10 +44,9 @@ export async function GET(
 
 // PATCH /api/applications/:id
 export async function PATCH(
-    req: Request,
-    { params }: { params: { id: string } }
+    req: Request, ctx: { params: Promise<{ id: string }> }
 ) {
-    const id = params.id;
+    const { id } = await ctx.params;
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const data = await req.json();
