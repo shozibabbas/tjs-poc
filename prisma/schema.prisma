@@ -83,6 +83,7 @@ model ApplicationUpdate {
   emgsLinkId String?
 
   @@index([emgsLinkId])
+  @@unique([emgsLinkId, createdAt, status], name: "emgs_update_unique")
 }
 
 model ApplicationIssue {
@@ -95,6 +96,7 @@ model ApplicationIssue {
   emgsLinkId String?
 
   @@index([emgsLinkId])
+  @@unique([emgsLinkId, issue, reportedAt], name: "emgs_issue_unique")
 }
 
 model EMGSLink {

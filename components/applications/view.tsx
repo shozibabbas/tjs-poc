@@ -77,6 +77,7 @@ export default function ApplicationView({ params }: { params: Usable<{ id: strin
     const appId = id;
 
     const { data: app, loading, err, refresh } = useApplication(appId);
+    const [emgsFetching, setEmgsFetching] = useState(false);
     const [tab, setTab] = useState<"overview"|"details"|"updates"|"issues">("overview");
     const hasEMGS = !!app?.emgs;
 
@@ -89,8 +90,12 @@ export default function ApplicationView({ params }: { params: Usable<{ id: strin
 
     async function fetchEMGS() {
         try {
+            if (emgsFetching) return;
+            setEmgsFetching(true);
+            // Trigger EMGS fetch
             const res = await fetch(`/api/applications/${appId}/emgs/fetch`, { method: "POST" });
             const j = await res.json();
+            setEmgsFetching(false);
             if (!res.ok) throw new Error(j?.error || "Failed to fetch EMGS data");
             // Re-fetch details
             await refresh();
@@ -98,6 +103,10 @@ export default function ApplicationView({ params }: { params: Usable<{ id: strin
             alert(e?.message || "Failed to start EMGS fetch");
         }
     }
+
+    if(emgsFetching) return (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Fetching EMGS data…</div>
+    )
 
     return (
         <div className="space-y-5">
@@ -107,16 +116,24 @@ export default function ApplicationView({ params }: { params: Usable<{ id: strin
                     <h2 className="text-lg font-semibold text-slate-900">Application</h2>
                     <p className="text-sm text-slate-600">View the status, details, and EMGS information.</p>
                 </div>
-                <button
-                    onClick={() => router.push("/super-admin/applications")}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                    Back to list
-                </button>
+                <div className={"gap-2 flex"}>
+                    <button
+                        onClick={() => router.push(`${id}/edit`)}
+                        className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800"
+                    >
+                        Edit
+                    </button>
+                    <button
+                        onClick={() => router.back()}
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                        Back to list
+                    </button>
+                </div>
             </header>
 
             {/* Loading / Error */}
-            {loading && <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading…</div>}
+            {(loading) && <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading…</div>}
             {err && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                     {err}
@@ -126,7 +143,7 @@ export default function ApplicationView({ params }: { params: Usable<{ id: strin
             {app && (
                 <div className="space-y-4">
                     {/* If EMGS available: beautiful progress header */}
-                    {app.emgs ? <ProgressHeader emgs={app.emgs} /> : null}
+                    {app.emgs ? <ProgressHeader emgs={app.emgs} onFetchEMGS={fetchEMGS} /> : null}
 
                     {/* Tabs */}
                     <nav className="flex flex-wrap gap-2">
@@ -257,7 +274,7 @@ function UpdatesTab({ updates }: { updates: ApplicationUpdate[] }) {
                 <div key={u.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-slate-900">{u.status}</span>
-                        <span className="text-xs text-slate-500">{new Date(u.createdAt).toLocaleString()}</span>
+                        <span className="text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</span>
                     </div>
                     {u.remark && <p className="mt-2 text-sm text-slate-700">{u.remark}</p>}
                 </div>
@@ -272,25 +289,45 @@ function IssuesTab({ issues }: { issues: ApplicationIssue[] }) {
     }
     return (
         <div className="space-y-4">
-            {issues.map(i => (
-                <div key={i.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-slate-900">{i.issue}</span>
-                        <span className="text-xs text-slate-500">{new Date(i.reportedAt).toLocaleString()}</span>
-                    </div>
-                    <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">
-            Status: {i.status}
-          </span>
-                    {i.comment && <p className="mt-2 text-sm text-slate-700">{i.comment}</p>}
-                </div>
-            ))}
+            <table
+                className="w-full table-auto border-collapse"
+            >
+                <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-sm text-slate-700">
+                    <th className="px-4 py-2">Reported At</th>
+                    <th className="px-4 py-2">Issue</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Comment</th>
+                </tr>
+                </thead>
+                <tbody>
+                {issues.map(i => (
+                    <tr key={i.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-2 align-top text-sm text-slate-500">{new Date(i.reportedAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-2 align-top text-sm text-slate-900">{i.issue}</td>
+                        <td className="px-4 py-2 align-top">
+                            <span
+                                className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs ${
+                                    i.status.toLowerCase() === "resolved"
+                                        ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+                                        : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                                }`}
+                            >
+                                {i.status}
+                            </span>
+                        </td>
+                        <td className="px-4 py-2 align-top text-sm text-slate-700">{i.comment || "—"}</td>
+                    </tr>
+                ))}
+                </tbody>
+            </table>
         </div>
     );
 }
 
 /* --------------------- Pretty progress header --------------------- */
 
-function ProgressHeader({ emgs }: { emgs: EMGSLink }) {
+function ProgressHeader({ emgs, onFetchEMGS }: { emgs: EMGSLink; onFetchEMGS: () => void }) {
     const pct = Math.max(0, Math.min(100, parseInt(emgs.progressPercentage || "0", 10) || 0));
 
     return (
@@ -302,6 +339,12 @@ function ProgressHeader({ emgs }: { emgs: EMGSLink }) {
                     <p className="mt-2 text-xs text-slate-500">
                         Last updated: {new Date(emgs.updatedAt).toLocaleString()}
                     </p>
+                    <button
+                        onClick={onFetchEMGS}
+                        className="mt-3 rounded-lg bg-rose-700 px-2 py-1 text-xs font-semibold text-white hover:bg-rose-800"
+                    >
+                        Fetch EMGS Data
+                    </button>
                 </div>
                 <div className="flex items-center justify-center">
                     <div className="relative h-28 w-28">
