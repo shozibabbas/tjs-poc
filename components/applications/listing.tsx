@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import {Usable, use, useEffect, useState} from "react";
 import Link from "next/link";
 import {useSessionRole} from "@/app/hooks/useSessionRole";
 
@@ -18,8 +17,7 @@ type ApplicationRow = {
     agent?: { id: string; name: string; code: string } | null;
 };
 
-export default function ApplicationsListing() {
-    const params = useSearchParams();
+export default function ApplicationsListing({ params }: { params: Usable<{ agentId: string }> }) {
     const [q, setQ] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -27,7 +25,7 @@ export default function ApplicationsListing() {
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
 
-    const agentId = params.get("agentId") || "";
+    const { agentId } = use(params);
     const role = useSessionRole();
 
     useEffect(() => {
