@@ -1,5 +1,4 @@
 // app/api/applications/[id]/emgs/fetch/route.ts
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as cheerio from "cheerio";
 import lookup from "country-code-lookup";
@@ -14,13 +13,13 @@ const SEARCH_FORM = `${ORIGIN}/emgs/application/searchForm`;
 const SEARCH_POST = `${ORIGIN}/emgs/application/searchPost/`;
 
 export async function fetchAndUpsertEMGS(id: string) {
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    if (!id) return { error: "Missing id" };
 
     const application = await prisma.application.findUnique({ where: { id } });
-    if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    if (!application) return { error: "Application not found" };
 
     if (application.country.toLowerCase() !== "malaysia") {
-        return NextResponse.json({ error: "EMGS applies to Malaysia only." }, { status: 400 });
+        return { error: "EMGS applies to Malaysia only." };
     }
 
     // Snapshot previous EMGS, updates, and issues for diffing later
@@ -35,7 +34,7 @@ export async function fetchAndUpsertEMGS(id: string) {
     // Map nationality -> ISO2 (e.g., Pakistan -> PK). Try common variants.
     const iso2 = resolveIso2(application.nationality);
     if (!iso2) {
-        return NextResponse.json({ error: `Could not resolve ISO-2 code for nationality: ${application.nationality}` }, { status: 400 });
+        return { error: `Could not resolve ISO-2 code for nationality: ${application.nationality}` };
     }
 
     try {
@@ -54,7 +53,7 @@ export async function fetchAndUpsertEMGS(id: string) {
         const formKey = $('input[name="form_key"]').attr("value") || "";
 
         if (!formKey) {
-            return NextResponse.json({ error: "Unable to extract form_key from EMGS search form." }, { status: 502 });
+            return { error: "Unable to extract form_key from EMGS search form." };
         }
 
         // 2) POST the search with form_key + passport + nationality
@@ -100,13 +99,13 @@ export async function fetchAndUpsertEMGS(id: string) {
                 },
             });
 
-            return NextResponse.json({
+            return {
                 ok: true,
                 emgsId: emgs.id,
                 progressPercentage: emgs.progressPercentage,
                 progressRemark: emgs.progressRemark,
                 source: "fallback",
-            });
+            };
         }
 
         const progressPercentage = extractPercent(h2Text); // keep digits only if present
@@ -292,16 +291,16 @@ export async function fetchAndUpsertEMGS(id: string) {
             }
         }
 
-        return NextResponse.json({
+        return {
             ok: true,
             emgsId: emgs.id,
             progressPercentage,
             progressRemark,
             source: "emgs",
-        });
+        };
     } catch (err: any) {
         console.error("EMGS fetch error:", err);
-        return NextResponse.json({ error: "Failed to fetch EMGS data." }, { status: 502 });
+        return { error: "Failed to fetch EMGS data." };
     }
 }
 
