@@ -411,9 +411,9 @@ function buildEmgsDiff(
 
     // ApplicationUpdates diff
     const prevUpdates = new Map(
-        (prev?.applicationUpdates || []).map((u) => [keyUpdate(u), u])
+        (prev?.applicationUpdates || []).map((u: { createdAt: Date; status: string; }) => [keyUpdate(u), u])
     );
-    const nextUpdates = new Map(next.applicationUpdates.map((u) => [keyUpdate(u), u])) as any;
+    const nextUpdates = new Map(next.applicationUpdates.map((u: { createdAt: Date; status: string; }) => [keyUpdate(u), u])) as any;
 
     // Added updates
     for (const [k, u] of nextUpdates) {
@@ -440,9 +440,9 @@ function buildEmgsDiff(
 
     // ApplicationIssues diff
     const prevIssues = new Map(
-        (prev?.applicationIssues || []).map((i) => [keyIssue(i), i])
+        (prev?.applicationIssues || []).map((i: { reportedAt: Date; issue: string; }) => [keyIssue(i), i])
     );
-    const nextIssues = new Map(next.applicationIssues.map((i) => [keyIssue(i), i])) as any;
+    const nextIssues = new Map(next.applicationIssues.map((i: { reportedAt: Date; issue: string; }) => [keyIssue(i), i])) as any;
 
     // Added issues
     for (const [k, i] of nextIssues) {
