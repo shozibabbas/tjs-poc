@@ -16,3 +16,96 @@ model Report {
 
   @@index([expiresAt])
 }
+
+model Application {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Applicant identity
+  firstName String
+  lastName  String
+  passport  String
+  email     String
+  phone     String
+
+  // Study & preferences
+  nationality String
+  visaCity    String // Single-entry visa (processing city)
+  country     String // Study destination country
+  university  String
+  program     String
+  intake      String
+
+  // Agent referral & approval
+  agentReferralCode String // User-entered code (e.g., "TJS-ISB-001")
+  agentApproval     Boolean @default(false)
+
+  // Linking to an Agent (resolved after validation/approval)
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id])
+
+  // Applicant portal credentials
+  username String @unique
+  password String
+
+  EMGSLink EMGSLink?
+
+  @@index([agentReferralCode])
+  @@index([agentId])
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Super-admin managed referral & contact
+  code  String  @unique // The referral code (e.g., "TJS-ISB-001")
+  name  String
+  email String
+  phone String?
+
+  // Agent portal credentials
+  username String @unique
+  password String
+
+  // Backlink to applications
+  applications Application[]
+}
+
+model ApplicationUpdate {
+  id         String    @id @default(cuid())
+  status     String
+  remark     String?
+  createdAt  DateTime  @default(now())
+  EMGSLink   EMGSLink? @relation(fields: [emgsLinkId], references: [id])
+  emgsLinkId String?
+
+  @@index([emgsLinkId])
+}
+
+model ApplicationIssue {
+  id         String    @id @default(cuid())
+  issue      String
+  status     String
+  comment    String?
+  reportedAt DateTime  @default(now())
+  EMGSLink   EMGSLink? @relation(fields: [emgsLinkId], references: [id])
+  emgsLinkId String?
+
+  @@index([emgsLinkId])
+}
+
+model EMGSLink {
+  id                 String       @id @default(cuid())
+  applicationId      String?      @unique
+  application        Application? @relation(fields: [applicationId], references: [id])
+  progressPercentage String
+  progressRemark     String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  applicationUpdates ApplicationUpdate[]
+  applicationIssues  ApplicationIssue[]
+}
