@@ -108,6 +108,15 @@ export async function POST(req: Request) {
     }
 
     try {
+        const agent = await prisma.agent.findUnique({
+            where: { code: data.agentReferralCode },
+            select: { id: true, name: true, email: true, code: true },
+        });
+
+        if(!agent) {
+            return NextResponse.json({ error: "Invalid agent username" }, { status: 400 });
+        }
+
         // Create the application
         const created = await prisma.application.create({
             data: {
@@ -126,7 +135,7 @@ export async function POST(req: Request) {
                 agentApproval: false,
                 username: data.username,
                 password: data.password,
-                agentId: data.agentId ?? null,
+                agentId: agent.id ?? null,
             },
             select: {
                 id: true, createdAt: true, email: true, phone: true,
@@ -136,21 +145,6 @@ export async function POST(req: Request) {
                 agentReferralCode: true, agentId: true
             },
         });
-
-        // Try to resolve agent by agentId first, then by referral code
-        const agent = await (async () => {
-            if (created.agentId) {
-                return prisma.agent.findUnique({
-                    where: { id: created.agentId },
-                    select: { id: true, name: true, email: true, code: true },
-                });
-            }
-            // fallback: resolve by referral code
-            return prisma.agent.findUnique({
-                where: { code: created.agentReferralCode },
-                select: { id: true, name: true, email: true, code: true },
-            });
-        })();
 
         // Fire-and-forget email (doesn't block response if it fails)
         sendAgentApprovalEmailSafe(created, agent).catch((err) => {

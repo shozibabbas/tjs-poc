@@ -57,8 +57,19 @@ export default function ApplicationsListing() {
         <div className="space-y-4">
             <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-900">Applications</h2>
-                    <p className="text-sm text-slate-600">Review and manage student applications.</p>
+                    <div className={"flex flex-row gap-3 items-center"}>
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-900">Applications</h2>
+                        <p className="text-sm text-slate-600">Review and manage student applications.</p>
+                    </div>
+                        {/* 🔘 Add New button */}
+                        <Link
+                            href="applications/new"
+                            className="inline-flex items-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800"
+                        >
+                            + New Application
+                        </Link>
+                    </div>
                     {agentId && <p className="text-xs text-slate-500 mt-1">Filtered by Agent ID: <span className="font-mono">{agentId}</span></p>}
                 </div>
                 <input
@@ -123,14 +134,14 @@ export default function ApplicationsListing() {
                             <TD>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Link
-                                        href={`/agent/applications/${r.id}`}
+                                        href={`applications/${r.id}`}
                                         className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                                         title="View application"
                                     >
                                         View
                                     </Link>
                                     <Link
-                                        href={`/agent/applications/${r.id}/edit`}
+                                        href={`applications/${r.id}/edit`}
                                         className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
                                         title="Edit application"
                                     >

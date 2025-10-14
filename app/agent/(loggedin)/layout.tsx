@@ -7,7 +7,7 @@ import { useState, useMemo } from "react";
 
 const MODULES = [
     { href: "/agent/applications", label: "Applications", icon: "📄" },
-    { href: "/agent/claim-requests", label: "Claim Requests", icon: "🧾" },
+    // { href: "/agent/claim-requests", label: "Claim Requests", icon: "🧾" },
 ];
 
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
