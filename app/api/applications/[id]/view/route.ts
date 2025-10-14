@@ -5,10 +5,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-    _req: Request,
-    { params }: { params: { id: string } }
+    _req: Request, ctx: { params: Promise<{ id: string }> }
 ) {
-    const id = (await params).id;
+    const { id } = await ctx.params;
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const app = await prisma.application.findUnique({
