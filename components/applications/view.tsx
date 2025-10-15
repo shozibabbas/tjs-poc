@@ -2,6 +2,7 @@
 
 import {Usable, use, useEffect, useMemo, useState} from "react";
 import { useRouter } from "next/navigation";
+import {EMGSStatus} from "@prisma/client";
 
 type Agent = { id: string; name: string; code: string; email?: string | null; phone?: string | null };
 type ApplicationUpdate = { id: string; status: string; remark?: string | null; createdAt: string };
@@ -10,6 +11,7 @@ type EMGSLink = {
     id: string;
     progressPercentage: string; // e.g., "42"
     progressRemark: string;
+    status: EMGSStatus;
     createdAt: string;
     updatedAt: string;
     applicationUpdates: ApplicationUpdate[];
@@ -325,6 +327,47 @@ function IssuesTab({ issues }: { issues: ApplicationIssue[] }) {
     );
 }
 
+function EmgsRemarkInline({ remark }: { remark?: string | null }) {
+    if (!remark || !remark.trim()) {
+        return <span className="text-slate-500">—</span>;
+    }
+
+    // Extract excerpt (first paragraph or ~180 chars)
+    const LIMIT = 180;
+    const firstPara = remark.split(/\r?\n\r?\n|\r?\n/)[0].trim();
+    const excerpt =
+        firstPara.length > LIMIT
+            ? firstPara.slice(0, LIMIT).replace(/\s+\S*$/, "") + "…"
+            : firstPara;
+
+    const needsCollapse = remark.length > excerpt.length;
+
+    if (!needsCollapse) {
+        return (
+            <span className="text-slate-700 whitespace-pre-wrap break-words">
+        {remark}
+      </span>
+        );
+    }
+
+    return (
+        <details className="inline text-slate-700 group">
+            <summary className="inline cursor-pointer select-none text-slate-700 hover:text-rose-700 transition-colors">
+                <span>{excerpt}</span>
+                <span className="ml-1 text-xs text-rose-700 group-open:hidden">
+          (more)
+        </span>
+                <span className="ml-1 text-xs text-rose-700 hidden group-open:inline">
+          (less)
+        </span>
+            </summary>
+            <pre className="mt-1 ml-0 whitespace-pre-wrap break-words text-slate-700 text-[13px] leading-relaxed">
+        {remark}
+      </pre>
+        </details>
+    );
+}
+
 /* --------------------- Pretty progress header --------------------- */
 
 function ProgressHeader({ emgs, onFetchEMGS }: { emgs: EMGSLink; onFetchEMGS: () => void }) {
@@ -335,7 +378,9 @@ function ProgressHeader({ emgs, onFetchEMGS }: { emgs: EMGSLink; onFetchEMGS: ()
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:items-center">
                 <div className="md:col-span-2">
                     <h3 className="text-base font-semibold text-slate-900">EMGS Progress</h3>
-                    <p className="mt-1 text-sm text-slate-700">{emgs.progressRemark || "—"}</p>
+                    <p className="mt-1 text-sm text-slate-700">
+                        <EmgsRemarkInline remark={emgs.progressRemark} />
+                    </p>
                     <p className="mt-2 text-xs text-slate-500">
                         Last updated: {new Date(emgs.updatedAt).toLocaleString()}
                     </p>
@@ -359,7 +404,11 @@ function ProgressHeader({ emgs, onFetchEMGS }: { emgs: EMGSLink; onFetchEMGS: ()
                                 strokeLinecap="round"
                                 strokeDasharray={`${2 * Math.PI * 42}`}
                                 strokeDashoffset={`${(1 - pct / 100) * 2 * Math.PI * 42}`}
-                                className="text-rose-700 transition-[stroke-dashoffset] duration-700 ease-out"
+                                className={`${emgs.status === "SUCCESS"
+                                    ? "text-emerald-600"
+                                    : emgs.status === "PENDING"
+                                        ? "text-amber-600"
+                                        : "text-rose-600"} transition-[stroke-dashoffset] duration-700 ease-out`}
                                 fill="none"
                             />
                         </svg>

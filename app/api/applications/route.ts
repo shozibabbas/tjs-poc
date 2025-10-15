@@ -5,6 +5,7 @@ import {prisma} from "@/lib/prisma";
 import {Prisma} from "@prisma/client";
 import {cookies} from "next/headers";
 import {verifySession} from "@/lib/auth";
+import {x} from "tinyexec";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,19 @@ export async function GET(req: Request) {
             skip,
             take: pageSize,
             orderBy: { createdAt: "desc" },
-            include: { agent: true },
+            include: {
+                agent: true,
+                EMGSLink: {
+                    include: {
+                        applicationUpdates: {
+                            take: 1,
+                            orderBy: {
+                                createdAt: "desc"
+                            }
+                        }
+                    }
+                }
+            },
         }),
     ]);
 
@@ -85,6 +98,7 @@ export async function GET(req: Request) {
             agentApproval: x.agentApproval,
             agentReferralCode: x.agentReferralCode,
             agent: x.agent ? { id: x.agent.id, name: x.agent.name, code: x.agent.code } : null,
+            EMGSLink: x.EMGSLink ? x.EMGSLink : null,
         })),
     });
 }

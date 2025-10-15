@@ -8,7 +8,7 @@ import { useState, useMemo } from "react";
 const MODULES = [
     { href: "/super-admin/applications", label: "Applications", icon: "📄" },
     { href: "/super-admin/agents",       label: "Agents",       icon: "🧑‍💼" },
-    // { href: "/super-admin/claim-requests", label: "Claim Requests", icon: "🧾" },
+    { href: "/super-admin/invoices", label: "Invoices", icon: "🧾" },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

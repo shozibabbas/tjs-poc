@@ -99,12 +99,19 @@ model ApplicationIssue {
   @@unique([emgsLinkId, issue, reportedAt], name: "emgs_issue_unique")
 }
 
+enum EMGSStatus {
+  SUCCESS
+  PENDING
+  FAILURE
+}
+
 model EMGSLink {
   id                 String       @id @default(cuid())
   applicationId      String?      @unique
   application        Application? @relation(fields: [applicationId], references: [id])
   progressPercentage String
   progressRemark     String
+  status             EMGSStatus   @default(PENDING)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 

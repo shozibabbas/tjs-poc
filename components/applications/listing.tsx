@@ -3,6 +3,7 @@
 import {Usable, use, useEffect, useState} from "react";
 import Link from "next/link";
 import {useSessionRole} from "@/app/hooks/useSessionRole";
+import {ApplicationUpdate, EMGSStatus} from "@prisma/client";
 
 type ApplicationRow = {
     id: string;
@@ -15,6 +16,7 @@ type ApplicationRow = {
     intake: string;
     agentApproval: boolean;
     agent?: { id: string; name: string; code: string } | null;
+    EMGSLink?: { progressPercentage: string; status: EMGSStatus; applicationUpdates: ApplicationUpdate[] };
 };
 
 export default function ApplicationsListing({ params }: { params: Usable<{ agentId: string }> }) {
@@ -50,6 +52,91 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
     }, [q, page, pageSize, agentId]);
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    /** ---------- helpers.ts ---------- */
+    function formatDate(d: string | Date) {
+        const dt = new Date(d);
+        return dt.toLocaleString(); // tweak to your locale/UI
+    }
+
+    function daysBetween(a: Date, b: Date) {
+        const ms = Math.abs(a.getTime() - b.getTime());
+        return Math.floor(ms / (1000 * 60 * 60 * 24));
+    }
+
+    function addDays(d: Date, n: number) {
+        const x = new Date(d);
+        x.setDate(x.getDate() + n);
+        return x;
+    }
+
+    /** Circular progress (SVG) */
+    function CircularProgress({
+                                  size = 40,
+                                  stroke = 5,
+                                  value = 0, // 0..100
+                                  trackClass = "text-slate-200",
+                                  barClass = "text-emerald-600",
+                                  label,
+                              }: {
+        size?: number;
+        stroke?: number;
+        value: number;
+        trackClass?: string;
+        barClass?: string;
+        label?: string | number;
+    }) {
+        const r = (size - stroke) / 2;
+        const c = 2 * Math.PI * r;
+        const pct = Math.max(0, Math.min(100, value));
+        const dash = (pct / 100) * c;
+
+        return (
+            <div className="relative inline-block" style={{ width: size, height: size }}>
+                <svg width={size} height={size}>
+                    <circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={r}
+                        strokeWidth={stroke}
+                        className={trackClass}
+                        fill="none"
+                        stroke="currentColor"
+                        opacity={0.5}
+                    />
+                    <circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={r}
+                        strokeWidth={stroke}
+                        className={barClass}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeDasharray={`${dash} ${c - dash}`}
+                        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                    />
+                </svg>
+                <div className="absolute inset-0 grid place-items-center text-[11px] font-semibold text-slate-700">
+                    {label ?? `${pct}%`}
+                </div>
+            </div>
+        );
+    }
+
+    /** Map EMGSLink.status -> color utility */
+    function statusColor(status?: string) {
+        switch (status) {
+            case "SUCCESS":
+                return "text-emerald-700";
+            case "PENDING":
+                return "text-amber-700";
+            case "FAILURE":
+                return "text-rose-700";
+            default:
+                return "text-slate-600";
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -125,9 +212,74 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                             {/*<TD>{r.intake}</TD>*/}
                             {role !== "agent" && <TD>{r.agent ? `${r.agent.name}` : "—"}</TD>}
                             <TD>
-                  <span className={r.agentApproval ? "text-emerald-700" : "text-amber-700"}>
-                    {r.agentApproval ? "Approved" : "Agent Approval Pending"}
-                  </span>
+                                {r.EMGSLink ? (
+                                    <div className="flex items-center gap-3">
+                                        <CircularProgress
+                                            value={Number(r.EMGSLink.progressPercentage || 0)}
+                                            barClass={
+                                                r.EMGSLink.status === "SUCCESS"
+                                                    ? "text-emerald-600"
+                                                    : r.EMGSLink.status === "PENDING"
+                                                        ? "text-amber-600"
+                                                        : "text-rose-600"
+                                            }
+                                            label={`${r.EMGSLink.progressPercentage}%`}
+                                        />
+
+                                        <div className="flex flex-col">
+        <span className={`text-xs uppercase tracking-wide font-semibold ${statusColor(r.EMGSLink.status)}`}>
+          {r.EMGSLink.status || "PENDING"}
+        </span>
+
+                                            {/* last update time from applicationUpdates */}
+                                            {(() => {
+                                                const last = (r.EMGSLink.applicationUpdates || [])
+                                                    .slice()
+                                                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+                                                return last ? (
+                                                    <span className="text-xs text-slate-500">
+              Last update: {formatDate(last.createdAt)}
+            </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400">No timeline updates yet</span>
+                                                );
+                                            })()}
+
+                                            {/* Claim messaging for "Application completed" */}
+                                            {(() => {
+                                                const updates = r.EMGSLink.applicationUpdates || [];
+                                                if (updates.length === 1 && updates[0].status === "Application completed") {
+                                                    const completedAt = new Date(updates[0].createdAt);
+                                                    const now = new Date();
+                                                    const elapsed = daysBetween(now, completedAt);
+                                                    const claimAt = addDays(completedAt, 14);
+
+                                                    if (elapsed < 14) {
+                                                        const remaining = 14 - elapsed;
+                                                        return (
+                                                            <span className="text-xs text-amber-700 mt-1">
+                  Claim will be requested automatically in {remaining} day{remaining === 1 ? "" : "s"} (on{" "}
+                                                                {formatDate(claimAt)}).
+                </span>
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <span className="text-xs text-emerald-700 mt-1">
+                  Claim has been requested.
+                </span>
+                                                        );
+                                                    }
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                    </div>
+                                ) : r.agentApproval ? (
+                                    <span className="text-slate-500 font-medium">Waiting for EMGS</span>
+                                ) : (
+                                    <span className="text-amber-700 font-medium">Agent Approval Pending</span>
+                                )}
                             </TD>
                             <TD>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -138,13 +290,15 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                                     >
                                         View
                                     </Link>
-                                    <Link
-                                        href={`applications/${r.id}/edit`}
-                                        className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
-                                        title="Edit application"
-                                    >
-                                        Edit
-                                    </Link>
+                                    {
+                                        !r.agentApproval && (<Link
+                                            href={`applications/${r.id}/edit`}
+                                            className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+                                            title="Edit application"
+                                        >
+                                            Edit
+                                        </Link>)
+                                    }
                                 </div>
                             </TD>
                         </tr>

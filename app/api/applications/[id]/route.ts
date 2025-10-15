@@ -14,7 +14,7 @@ export async function GET(
 
     const app = await prisma.application.findUnique({
         where: { id },
-        include: { agent: true },
+        include: { agent: true, EMGSLink: true },
     });
 
     if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -39,6 +39,7 @@ export async function GET(
         agent: app.agent
             ? { id: app.agent.id, name: app.agent.name, code: app.agent.code }
             : null,
+        EMGSLink: app.EMGSLink ? app.EMGSLink : null,
     });
 }
 

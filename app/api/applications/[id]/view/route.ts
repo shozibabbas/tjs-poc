@@ -45,11 +45,7 @@ export async function GET(
         agent: app.agent ? { id: app.agent.id, name: app.agent.name, code: app.agent.code, email: app.agent.email, phone: app.agent.phone } : null,
         emgs: app.EMGSLink
             ? {
-                id: app.EMGSLink.id,
-                progressPercentage: app.EMGSLink.progressPercentage,
-                progressRemark: app.EMGSLink.progressRemark,
-                createdAt: app.EMGSLink.createdAt,
-                updatedAt: app.EMGSLink.updatedAt,
+                ...app.EMGSLink,
                 applicationUpdates: app.EMGSLink.applicationUpdates.map(u => ({
                     id: u.id, status: u.status, remark: u.remark, createdAt: u.createdAt,
                 })),

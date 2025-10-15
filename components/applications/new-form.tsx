@@ -239,7 +239,7 @@ export default function ApplicationNewForm() {
                                         </ul>
                                     ) : (
                                         <p className="mt-2 text-sm text-slate-500">
-                                            Enter a valid code to preview agent details. (Submission still works—server validates.)
+                                            Enter a valid code to preview agent details.
                                         </p>
                                     )}
                                 </div>
@@ -251,37 +251,37 @@ export default function ApplicationNewForm() {
                         </Section>
 
                         {/* Credentials */}
-                        <Section title="Applicant Portal Credentials">
-                            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-                                <Field label="Username" required hint="You can adjust this before creating.">
-                                    <div className="flex gap-2">
-                                        <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
-                                               value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="muhammad.ali123" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setUsername(genUsername(firstName, lastName))}
-                                            className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50"
-                                        >
-                                            Suggest
-                                        </button>
-                                    </div>
-                                </Field>
+                        {/*<Section title="Applicant Portal Credentials">*/}
+                        {/*    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">*/}
+                        {/*        <Field label="Username" required hint="You can adjust this before creating.">*/}
+                        {/*            <div className="flex gap-2">*/}
+                        {/*                <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"*/}
+                        {/*                       value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="muhammad.ali123" />*/}
+                        {/*                <button*/}
+                        {/*                    type="button"*/}
+                        {/*                    onClick={() => setUsername(genUsername(firstName, lastName))}*/}
+                        {/*                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50"*/}
+                        {/*                >*/}
+                        {/*                    Suggest*/}
+                        {/*                </button>*/}
+                        {/*            </div>*/}
+                        {/*        </Field>*/}
 
-                                <Field label="Password" required hint="Share securely with the applicant after agent approval.">
-                                    <div className="flex gap-2">
-                                        <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
-                                               value={password} onChange={(e)=>setPassword(e.target.value)} />
-                                        <button
-                                            type="button"
-                                            onClick={() => setPassword(genPassword())}
-                                            className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50"
-                                        >
-                                            Generate
-                                        </button>
-                                    </div>
-                                </Field>
-                            </div>
-                        </Section>
+                        {/*        <Field label="Password" required hint="Share securely with the applicant after agent approval.">*/}
+                        {/*            <div className="flex gap-2">*/}
+                        {/*                <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"*/}
+                        {/*                       value={password} onChange={(e)=>setPassword(e.target.value)} />*/}
+                        {/*                <button*/}
+                        {/*                    type="button"*/}
+                        {/*                    onClick={() => setPassword(genPassword())}*/}
+                        {/*                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50"*/}
+                        {/*                >*/}
+                        {/*                    Generate*/}
+                        {/*                </button>*/}
+                        {/*            </div>*/}
+                        {/*        </Field>*/}
+                        {/*    </div>*/}
+                        {/*</Section>*/}
 
                         {/* Actions */}
                         {errorMsg && <p className="text-sm text-rose-700">{errorMsg}</p>}
@@ -325,7 +325,7 @@ export default function ApplicationNewForm() {
                                 <li><span className="text-slate-500">Program:</span> {program || "—"}</li>
                                 <li><span className="text-slate-500">Intake:</span> {intake || "—"}</li>
                                 <li><span className="text-slate-500">Agent Code:</span> <span className="font-mono">{agentReferralCode || "—"}</span></li>
-                                <li><span className="text-slate-500">Portal Username:</span> {username || "—"}</li>
+                                {/*<li><span className="text-slate-500">Portal Username:</span> {username || "—"}</li>*/}
                             </ul>
                             <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
                                 After submission, the agent will get an email to approve. The applicant receives a receipt email.

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import * as cheerio from "cheerio";
 import lookup from "country-code-lookup";
 import { getResend, getFromAddress, appUrl } from "@/lib/email";
+import {EMGSStatus} from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 // ensure Node runtime (NOT edge) because we parse HTML & manage cookies manually
@@ -80,6 +81,23 @@ export async function fetchAndUpsertEMGS(id: string) {
         const postHtml = await postRes.text();
         const $$ = cheerio.load(postHtml);
 
+        // Extract EMGS status color → map to SUCCESS / PENDING / FAILURE
+        let status: EMGSStatus = "PENDING"; // default
+        try {
+            const colorStyle =
+                $$("#accordion1 table tbody tr:first td:first")
+                    .attr("style")
+                    ?.match(/background-color\s*:\s*([^;]+)/i)?.[1]
+                    ?.trim()
+                    ?.toUpperCase() || "";
+
+            if (colorStyle.includes("#098136")) status = "SUCCESS";
+            else if (colorStyle.includes("#F5A724")) status = "PENDING";
+            else if (colorStyle) status = "FAILURE"; // any other color means failure
+        } catch {
+            // fail silently, keep status=PENDING
+        }
+
         // 3) Extract first h2 and first p under #accordion1
         const h2Text = $$("#accordion1 h2").first().text().trim();
         const pText = $$("#accordion1 p").first().text().trim();
@@ -92,10 +110,12 @@ export async function fetchAndUpsertEMGS(id: string) {
                     applicationId: application.id,
                     progressPercentage: "0",
                     progressRemark: "No EMGS result found for the provided passport/nationality.",
+                    status
                 },
                 update: {
                     progressPercentage: "0",
                     progressRemark: "No EMGS result found for the provided passport/nationality.",
+                    status
                 },
             });
 
@@ -105,6 +125,7 @@ export async function fetchAndUpsertEMGS(id: string) {
                 progressPercentage: emgs.progressPercentage,
                 progressRemark: emgs.progressRemark,
                 source: "fallback",
+                status
             };
         }
 
@@ -177,10 +198,12 @@ export async function fetchAndUpsertEMGS(id: string) {
                 applicationId: application.id,
                 progressPercentage,
                 progressRemark,
+                status
             },
             update: {
                 progressPercentage,
                 progressRemark,
+                status
             },
         });
 
