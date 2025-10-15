@@ -14,7 +14,7 @@ type InvoiceRow = {
     status: InvoiceStatus;
 };
 
-// Mock some rows
+// Mock data
 const MOCK_ROWS: InvoiceRow[] = [
     { id: "cmgr2pzj2001jvjuezqvsuyum", passport: "AJ8527223", applicant: "Ayesha Khan", completionDate: "2025-10-06T00:00:00.000Z", status: "claimed" },
     { id: "cmgq1aa12001jvjudemo00001", passport: "AA1234567", applicant: "Bilal Ahmed", completionDate: "2025-09-28T00:00:00.000Z", status: "approved" },
@@ -57,12 +57,21 @@ function Badge({ status }: { status: InvoiceStatus }) {
     );
 }
 
+const TAB_ORDER: Array<"" | InvoiceStatus> = ["", "claimed", "approved", "rejected", "paid"];
+
+function tabLabel(t: "" | InvoiceStatus) {
+    return t === "" ? "All" : t[0].toUpperCase() + t.slice(1);
+}
+
 /* ===================== Page ===================== */
 
 export default function InvoicesListing() {
+    // Tabs ("" = All)
+    const [tab, setTab] = useState<"" | InvoiceStatus>("");
+
     // Filters
     const [query, setQuery] = useState("");
-    const [status, setStatus] = useState<"" | InvoiceStatus>("");
+    const [statusFilter, setStatusFilter] = useState<"" | InvoiceStatus>(""); // will be driven by tab
     const [from, setFrom] = useState<string>(""); // yyyy-mm-dd
     const [to, setTo] = useState<string>("");     // yyyy-mm-dd
 
@@ -70,10 +79,29 @@ export default function InvoicesListing() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
+    // Derive counts per tab
+    const counts = useMemo(() => {
+        const base = {
+            all: MOCK_ROWS.length,
+            claimed: 0,
+            approved: 0,
+            rejected: 0,
+            paid: 0,
+        };
+        for (const r of MOCK_ROWS) base[r.status]++;
+        return base;
+    }, []);
+
+    // When tab changes, reflect in status filter & reset page
+    function onTabChange(next: "" | InvoiceStatus) {
+        setTab(next);
+        setStatusFilter(next);
+        setPage(1);
+    }
+
     // Derived: filtered rows
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-
         const passText = (s: string) => s.toLowerCase().includes(q);
 
         const withinDate = (iso?: string) => {
@@ -91,27 +119,20 @@ export default function InvoicesListing() {
         };
 
         return MOCK_ROWS.filter((row) => {
+            const matchesTab = !statusFilter || row.status === statusFilter;
             const matchesQuery =
-                !q ||
-                passText(row.id) ||
-                passText(row.passport) ||
-                passText(row.applicant);
-
-            const matchesStatus = !status || row.status === status;
-
-            const matchesDate =
-                (!from && !to) ? true : withinDate(row.completionDate);
-
-            return matchesQuery && matchesStatus && matchesDate;
+                !q || passText(row.id) || passText(row.passport) || passText(row.applicant);
+            const matchesDate = (!from && !to) ? true : withinDate(row.completionDate);
+            return matchesTab && matchesQuery && matchesDate;
         });
-    }, [query, status, from, to]);
+    }, [query, statusFilter, from, to]);
 
     // Pagination calc
     const total = filtered.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const current = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-    // Reset page when filters change
+    // Reset page when filters change (other than tab which already resets)
     function onFilterChange<T extends Function>(fn: T, ...args: any[]) {
         // @ts-ignore
         fn(...args);
@@ -128,6 +149,50 @@ export default function InvoicesListing() {
                 </div>
             </div>
 
+            {/* Tabs */}
+            <div className="overflow-x-auto">
+                <div role="tablist" aria-label="Invoice status tabs" className="flex gap-2">
+                    {TAB_ORDER.map((t) => {
+                        const active = tab === t;
+                        const count =
+                            t === ""
+                                ? counts.all
+                                : t === "claimed"
+                                    ? counts.claimed
+                                    : t === "approved"
+                                        ? counts.approved
+                                        : t === "rejected"
+                                            ? counts.rejected
+                                            : counts.paid;
+
+                        return (
+                            <button
+                                key={t || "all"}
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => onTabChange(t)}
+                                className={[
+                                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm",
+                                    active
+                                        ? "border-rose-600 bg-rose-50 text-rose-700"
+                                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                                ].join(" ")}
+                            >
+                                <span>{tabLabel(t)}</span>
+                                <span
+                                    className={[
+                                        "inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-xs font-semibold",
+                                        active ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600",
+                                    ].join(" ")}
+                                >
+                  {count}
+                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* Toolbar */}
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
@@ -140,22 +205,6 @@ export default function InvoicesListing() {
                             placeholder="Search application id, passport, applicant…"
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                         />
-                    </label>
-
-                    {/* Status */}
-                    <label className="md:col-span-2 grid items-start gap-1">
-                        <span className="text-xs font-medium text-slate-700">Status</span>
-                        <select
-                            value={status}
-                            onChange={(e) => onFilterChange(setStatus, e.target.value as any)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-rose-600 focus:ring-rose-600"
-                        >
-                            <option value="">All</option>
-                            <option value="claimed">Claimed</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="paid">Paid</option>
-                        </select>
                     </label>
 
                     {/* Date from */}
@@ -181,7 +230,7 @@ export default function InvoicesListing() {
                     </label>
                 </div>
 
-                {/* Row + page size + export (UI only) */}
+                {/* Row + page size + pagination */}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-slate-600">
                         Showing <strong>{total ? (page - 1) * pageSize + 1 : 0}</strong>–<strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong>
@@ -219,7 +268,7 @@ export default function InvoicesListing() {
                     {current.length === 0 && (
                         <tr>
                             <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                                No invoices found. Adjust filters or search terms.
+                                No invoices found. Adjust filters, tab, or search terms.
                             </td>
                         </tr>
                     )}
