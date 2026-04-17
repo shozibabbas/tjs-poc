@@ -80,7 +80,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                         >
                             <div className="flex items-center justify-between border-b border-slate-200 p-3">
                                 <div className="flex items-center gap-2">
-                                    <Image src="/tjs-new.png" width={24} height={24} alt="TJS" />
+                                    <Image src="/tjs-logo.png" width={24} height={24} alt="TJS" />
                                     <span className="text-sm font-semibold text-slate-900">TJS • Super Admin</span>
                                 </div>
                                 <button

@@ -411,17 +411,36 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
-                <div>
-                    <div className={"flex flex-row gap-3 items-center"}>
+            <div className="grid gap-3 md:grid-cols-3">
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Visible records</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{total}</div>
+                    <div className="mt-1 text-sm text-slate-600">Applications matching the current filters.</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Malaysia EMGS queue</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{emgsTotal}</div>
+                    <div className="mt-1 text-sm text-slate-600">Students eligible for live EMGS refresh.</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Current mode</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{showAll ? "Live sweep" : "Paged"}</div>
+                    <div className="mt-1 text-sm text-slate-600">Switch between focused review and full refresh runs.</div>
+                </div>
+            </div>
+
+            <div className="admin-panel-strong rounded-[28px] p-5 md:p-6">
+                <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+                    <div>
+                        <div className={"flex flex-row gap-3 items-center"}>
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900">Applications</h2>
-                        <p className="text-sm text-slate-600">Review and manage student applications.</p>
+                        <p className="text-sm text-slate-600">Review, refresh, export, and manage student application status from one screen.</p>
                     </div>
                         {/* 🔘 Add New button */}
                         <Link
                             href="applications/new"
-                            className="inline-flex items-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800"
+                            className="inline-flex items-center rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-rose-200/70 hover:from-rose-800 hover:to-rose-700"
                         >
                             + New Application
                         </Link>
@@ -432,11 +451,13 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                     value={q}
                     onChange={(e)=>{ setQ(e.target.value); setPage(1); }}
                     placeholder="Search by name, passport, program…"
-                    className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-slate-500"
+                    className="admin-input w-full rounded-xl px-4 py-3 text-sm md:w-80"
                 />
+                </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="admin-panel rounded-2xl p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="text-sm text-slate-600">
                     {loading ? (showAll
                             ? <>Loaded <strong>{loadedCount}</strong> of <strong>{total}</strong> • <strong>{remainingCount}</strong> remaining</>
@@ -455,7 +476,7 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                             setPage(1);
                         }}
                         disabled={loading || emgsRefreshing}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-slate-300/80 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {showAll ? "Back to Pages" : "Fetch All Students"}
                     </button>
@@ -463,20 +484,21 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                         type="button"
                         onClick={handleExportCsv}
                         disabled={loading || emgsRefreshing || exportingCsv}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-slate-300/80 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {exportingCsv ? "Exporting CSV..." : "Export CSV"}
                     </button>
                     <label className="text-sm text-slate-600">Rows:</label>
-                    <select className="rounded-md border border-slate-300 px-2 py-1 text-sm disabled:opacity-60" value={pageSize} onChange={(e)=>{setPageSize(Number(e.target.value)); setPage(1);}} disabled={showAll}>
+                    <select className="admin-input rounded-xl px-3 py-2 text-sm disabled:opacity-60" value={pageSize} onChange={(e)=>{setPageSize(Number(e.target.value)); setPage(1);}} disabled={showAll}>
                         {[5,10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                     {!showAll && <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />}
                 </div>
             </div>
+            </div>
 
             {showAll && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="admin-panel-strong rounded-[24px] p-4 shadow-sm">
                     <div className="mb-2 flex items-center justify-between text-xs font-medium text-slate-600">
                         <span>{loading ? "Step 1/2: Fetching all students" : emgsRefreshing ? "Step 2/2: Refreshing EMGS status (Malaysia only)" : "Fetch and EMGS refresh complete"}</span>
                         <span>
@@ -518,9 +540,9 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="admin-table-wrap overflow-x-auto rounded-[24px]">
                 <table className="min-w-[900px] w-full border-collapse text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-700">
+                    <thead className="bg-slate-50/90 text-slate-700">
                     <tr>
                         {/*<TH>ID</TH>*/}
                         <TH>Created</TH>
@@ -542,7 +564,7 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                         <tr><td colSpan={totalColumns} className="px-4 py-12 text-center text-slate-500">Loading…</td></tr>
                     )}
                     {rows.map((r) => (
-                        <tr key={r.id} className="border-top border-slate-100">
+                        <tr key={r.id} className="border-top border-slate-100/90 transition-colors hover:bg-rose-50/30">
                             {/*<TD className="font-mono">{r.id}</TD>*/}
                             <TD>{new Date(r.createdAt).toLocaleDateString()}</TD>
                             <TD>{r.passport}</TD>
@@ -616,7 +638,7 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Link
                                         href={`applications/${r.id}`}
-                                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                        className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
                                         title="View application"
                                     >
                                         View
@@ -624,7 +646,7 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                                     {
                                         !r.agentApproval && (<Link
                                             href={`applications/${r.id}/edit`}
-                                            className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+                                            className="rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-rose-200/70 hover:from-rose-800 hover:to-rose-700"
                                             title="Edit application"
                                         >
                                             Edit
@@ -638,7 +660,7 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                 </table>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-slate-600">
+            <div className="admin-panel rounded-2xl flex items-center justify-between px-4 py-3 text-sm text-slate-600">
                 {showAll ? (
                     <div>
                         {loading

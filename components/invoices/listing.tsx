@@ -141,8 +141,27 @@ export default function InvoicesListing() {
 
     return (
         <div className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-4">
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">All invoices</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{counts.all}</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Claimed</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{counts.claimed}</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Approved</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{counts.approved}</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Paid</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{counts.paid}</div>
+                </div>
+            </div>
+
             {/* Header */}
-            <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+            <div className="admin-panel-strong flex flex-col items-start justify-between gap-3 rounded-[28px] p-5 md:flex-row md:items-center md:p-6">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
                     <p className="text-sm text-slate-600">Review claim lifecycle for completed applications.</p>
@@ -172,7 +191,7 @@ export default function InvoicesListing() {
                                 aria-selected={active}
                                 onClick={() => onTabChange(t)}
                                 className={[
-                                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm",
+                                    "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm shadow-sm",
                                     active
                                         ? "border-rose-600 bg-rose-50 text-rose-700"
                                         : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -194,7 +213,7 @@ export default function InvoicesListing() {
             </div>
 
             {/* Toolbar */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="admin-panel-strong rounded-[28px] p-4 shadow-sm">
                 <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
                     {/* Search */}
                     <label className="md:col-span-4 grid items-start gap-1">
@@ -203,7 +222,7 @@ export default function InvoicesListing() {
                             value={query}
                             onChange={(e) => onFilterChange(setQuery, e.target.value)}
                             placeholder="Search application id, passport, applicant…"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
+                            className="admin-input w-full rounded-xl px-3 py-2 text-sm"
                         />
                     </label>
 
@@ -214,7 +233,7 @@ export default function InvoicesListing() {
                             type="date"
                             value={from}
                             onChange={(e) => onFilterChange(setFrom, e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-rose-600 focus:ring-rose-600"
+                            className="admin-input w-full rounded-xl px-3 py-2 text-sm bg-white"
                         />
                     </label>
 
@@ -225,7 +244,7 @@ export default function InvoicesListing() {
                             type="date"
                             value={to}
                             onChange={(e) => onFilterChange(setTo, e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-rose-600 focus:ring-rose-600"
+                            className="admin-input w-full rounded-xl px-3 py-2 text-sm bg-white"
                         />
                     </label>
                 </div>
@@ -240,7 +259,7 @@ export default function InvoicesListing() {
                         <select
                             value={pageSize}
                             onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                            className="rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
+                            className="admin-input rounded-xl px-3 py-2 text-sm bg-white"
                         >
                             {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
@@ -250,9 +269,9 @@ export default function InvoicesListing() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="admin-table-wrap overflow-x-auto rounded-[24px] shadow-sm">
                 <table className="min-w-[900px] w-full border-collapse text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-700">
+                    <thead className="bg-slate-50/90 text-slate-700">
                     <tr>
                         <TH>Application ID</TH>
                         <TH>Passport</TH>
@@ -274,7 +293,7 @@ export default function InvoicesListing() {
                     )}
 
                     {current.map((r) => (
-                        <tr key={r.id} className="border-t border-slate-100">
+                        <tr key={r.id} className="border-t border-slate-100 transition-colors hover:bg-rose-50/30">
                             <TD className="font-mono">{r.id}</TD>
                             <TD>{r.passport}</TD>
                             <TD className="font-medium text-slate-900">{r.applicant}</TD>
@@ -282,8 +301,8 @@ export default function InvoicesListing() {
                             <TD><Badge status={r.status} /></TD>
                             <TD>
                                 <div className="flex justify-end gap-2">
-                                    <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">View</button>
-                                    <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Download</button>
+                                    <button className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs shadow-sm hover:bg-slate-50">View</button>
+                                    <button className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs shadow-sm hover:bg-slate-50">Download</button>
                                 </div>
                             </TD>
                         </tr>
@@ -293,7 +312,7 @@ export default function InvoicesListing() {
             </div>
 
             {/* Footer Pagination */}
-            <div className="flex items-center justify-between text-sm text-slate-600">
+            <div className="admin-panel flex items-center justify-between rounded-2xl px-4 py-3 text-sm text-slate-600">
                 <div>Page <strong>{page}</strong> / {totalPages}</div>
                 <Pager page={page} totalPages={totalPages} onPage={setPage} />
             </div>

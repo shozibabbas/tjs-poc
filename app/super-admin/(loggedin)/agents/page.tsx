@@ -43,8 +43,26 @@ export default function AgentsPage() {
 
     return (
         <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Agents</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{total}</div>
+                    <div className="mt-1 text-sm text-slate-600">Currently visible with your search filters.</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Rows per page</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{pageSize}</div>
+                    <div className="mt-1 text-sm text-slate-600">Tune density for review or faster scanning.</div>
+                </div>
+                <div className="admin-kpi rounded-2xl p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Page</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{page}/{totalPages}</div>
+                    <div className="mt-1 text-sm text-slate-600">Move through the roster without losing context.</div>
+                </div>
+            </div>
+
             {/* Header + Search */}
-            <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+            <div className="admin-panel-strong flex flex-col items-start justify-between gap-3 rounded-[28px] p-5 md:flex-row md:items-center md:p-6">
                 <div className={"flex flex-row gap-3 items-center"}>
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900">Agents</h2>
@@ -53,7 +71,7 @@ export default function AgentsPage() {
                     {/* 🔘 Add New Agent button */}
                     <Link
                         href="/super-admin/agents/new"
-                        className="inline-flex items-center rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800"
+                        className="inline-flex items-center rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-rose-200/70 hover:from-rose-800 hover:to-rose-700"
                     >
                         + New Agent
                     </Link>
@@ -62,11 +80,12 @@ export default function AgentsPage() {
                     value={q}
                     onChange={(e) => { setQ(e.target.value); setPage(1); }}
                     placeholder="Search by name, code, or id…"
-                    className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-slate-500"
+                    className="admin-input w-full rounded-xl px-4 py-3 text-sm md:w-80"
                 />
             </div>
 
             {/* Controls */}
+            <div className="admin-panel rounded-2xl p-4">
             <div className="flex items-center justify-between gap-3">
                 <div className="text-sm text-slate-600">
                     {loading ? "Loading…" : <>Showing <strong>{total ? (page - 1) * pageSize + 1 : 0}</strong>–<strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong> agents</>}
@@ -74,7 +93,7 @@ export default function AgentsPage() {
                 <div className="flex items-center gap-2">
                     <label className="text-sm text-slate-600">Rows:</label>
                     <select
-                        className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                        className="admin-input rounded-xl px-3 py-2 text-sm"
                         value={pageSize}
                         onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
                     >
@@ -83,11 +102,12 @@ export default function AgentsPage() {
                     <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />
                 </div>
             </div>
+            </div>
 
             {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="admin-table-wrap overflow-x-auto rounded-[24px]">
                 <table className="min-w-[800px] w-full border-collapse text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-700">
+                    <thead className="bg-slate-50/90 text-slate-700">
                     <tr>
                         <TH>Code</TH><TH>Name</TH><TH>Email</TH><TH>Phone</TH><TH>Applications</TH><TH className="text-right">Actions</TH>
                     </tr>
@@ -100,7 +120,7 @@ export default function AgentsPage() {
                         <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">Loading…</td></tr>
                     )}
                     {rows.map((a) => (
-                        <tr key={a.id} className="border-t border-slate-100">
+                        <tr key={a.id} className="border-t border-slate-100 transition-colors hover:bg-rose-50/30">
                             <TD className="font-mono">{a.code}</TD>
                             <TD className="font-medium text-slate-900">{a.name}</TD>
                             <TD>{a.email}</TD>
@@ -112,10 +132,10 @@ export default function AgentsPage() {
                             </TD>
                             <TD className="text-right">
                                 <div className="flex justify-end gap-2">
-                                    <Link href={`/super-admin/applications?agentId=${encodeURIComponent(a.code)}`} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs hover:bg-slate-50">
+                                    <Link href={`/super-admin/applications?agentId=${encodeURIComponent(a.code)}`} className="rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-xs shadow-sm hover:bg-slate-50">
                                         View Applications
                                     </Link>
-                                    <Link href={`/super-admin/agents/${encodeURIComponent(a.id)}/edit`} className="rounded-md bg-rose-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-800">
+                                    <Link href={`/super-admin/agents/${encodeURIComponent(a.id)}/edit`} className="rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 px-2.5 py-1 text-xs font-semibold text-white shadow-md shadow-rose-200/70 hover:from-rose-800 hover:to-rose-700">
                                         Edit
                                     </Link>
                                 </div>
@@ -127,7 +147,7 @@ export default function AgentsPage() {
             </div>
 
             {/* Bottom pager */}
-            <div className="flex items-center justify-between text-sm text-slate-600">
+            <div className="admin-panel flex items-center justify-between rounded-2xl px-4 py-3 text-sm text-slate-600">
                 <div>Page <strong>{page}</strong> / {totalPages}</div>
                 <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />
             </div>
