@@ -30,6 +30,8 @@ export default function SiteFooter() {
                             <li><Link href="/scholarships" className="hover:text-rose-700">Scholarships</Link></li>
                             <li><Link href="/faq" className="hover:text-rose-700">FAQs</Link></li>
                             <li><Link href="/contact" className="hover:text-rose-700">Contact</Link></li>
+                            <li><Link href="/super-admin/login" className="hover:text-rose-700">Super Admin Login</Link></li>
+                            <li><Link href="/agent/login" className="hover:text-rose-700">Team Login</Link></li>
                         </ul>
                     </div>
 

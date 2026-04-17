@@ -14,44 +14,315 @@ type ApplicationRow = {
     university: string;
     program: string;
     intake: string;
+    country: string;
     agentApproval: boolean;
     agent?: { id: string; name: string; code: string } | null;
     EMGSLink?: { progressPercentage: string; status: EMGSStatus; applicationUpdates: ApplicationUpdate[] };
 };
 
 export default function ApplicationsListing({ params }: { params: Usable<{ agentId: string }> }) {
+    const FETCH_ALL_BATCH_SIZE = 100;
+    const EMGS_REFRESH_CONCURRENCY = 3;
+
     const [q, setQ] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [showAll, setShowAll] = useState(false);
     const [rows, setRows] = useState<ApplicationRow[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [loadedCount, setLoadedCount] = useState(0);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [emgsRefreshing, setEmgsRefreshing] = useState(false);
+    const [emgsTotal, setEmgsTotal] = useState(0);
+    const [emgsProcessed, setEmgsProcessed] = useState(0);
+    const [emgsSuccesses, setEmgsSuccesses] = useState(0);
+    const [emgsFailures, setEmgsFailures] = useState(0);
+    const [exportingCsv, setExportingCsv] = useState(false);
 
     const { agentId } = use(params);
     const role = useSessionRole();
+
+    const totalColumns = role !== "agent" ? 6 : 5;
 
     useEffect(() => {
         let ignore = false;
         (async () => {
             setLoading(true);
-            const qs = new URLSearchParams({
-                q,
-                page: String(page),
-                pageSize: String(pageSize),
-                ...(agentId ? { agentId } : {}),
-            });
-            const res = await fetch(`/api/applications?` + qs.toString(), { cache: "no-store" });
-            const data = await res.json();
-            if (!ignore) {
-                setRows(data.items || []);
-                setTotal(data.total || 0);
-                setLoading(false);
+            setLoadError(null);
+
+            const buildQs = (nextPage: number, nextPageSize: number) =>
+                new URLSearchParams({
+                    q,
+                    page: String(nextPage),
+                    pageSize: String(nextPageSize),
+                    ...(agentId ? { agentId } : {}),
+                });
+
+            try {
+                if (!showAll) {
+                    setEmgsRefreshing(false);
+                    setEmgsTotal(0);
+                    setEmgsProcessed(0);
+                    setEmgsSuccesses(0);
+                    setEmgsFailures(0);
+
+                    const qs = buildQs(page, pageSize);
+                    const res = await fetch(`/api/applications?` + qs.toString(), { cache: "no-store" });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data?.error || "Failed to load applications.");
+                    }
+
+                    if (!ignore) {
+                        const nextRows = data.items || [];
+                        const nextTotal = data.total || 0;
+                        setRows(nextRows);
+                        setTotal(nextTotal);
+                        setLoadedCount(nextRows.length);
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                setRows([]);
+                setLoadedCount(0);
+                setTotal(0);
+                setEmgsRefreshing(false);
+                setEmgsTotal(0);
+                setEmgsProcessed(0);
+                setEmgsSuccesses(0);
+                setEmgsFailures(0);
+
+                const firstQs = buildQs(1, FETCH_ALL_BATCH_SIZE);
+                const firstRes = await fetch(`/api/applications?` + firstQs.toString(), { cache: "no-store" });
+                const firstData = await firstRes.json();
+                if (!firstRes.ok) {
+                    throw new Error(firstData?.error || "Failed to load all applications.");
+                }
+
+                if (ignore) return;
+
+                const firstItems = Array.isArray(firstData.items) ? firstData.items : [];
+                const totalMatches = Number(firstData.total || 0);
+                const totalPagesForAll = Math.max(1, Math.ceil(totalMatches / FETCH_ALL_BATCH_SIZE));
+                let allItems: ApplicationRow[] = firstItems;
+
+                setRows(firstItems);
+                setTotal(totalMatches);
+                setLoadedCount(firstItems.length);
+
+                for (let p = 2; p <= totalPagesForAll; p++) {
+                    if (ignore) return;
+
+                    const nextQs = buildQs(p, FETCH_ALL_BATCH_SIZE);
+                    const nextRes = await fetch(`/api/applications?` + nextQs.toString(), { cache: "no-store" });
+                    const nextData = await nextRes.json();
+                    if (!nextRes.ok) {
+                        throw new Error(nextData?.error || `Failed while loading page ${p}.`);
+                    }
+
+                    if (ignore) return;
+
+                    const nextItems = Array.isArray(nextData.items) ? nextData.items : [];
+                    allItems = allItems.concat(nextItems);
+                    setRows((prev) => prev.concat(nextItems));
+                    setLoadedCount((prev) => prev + nextItems.length);
+                }
+
+                const malaysiaIds = allItems
+                    .filter((item) => (item.country || "").trim().toLowerCase() === "malaysia")
+                    .map((item) => item.id);
+
+                setEmgsTotal(malaysiaIds.length);
+                setEmgsProcessed(0);
+                setEmgsSuccesses(0);
+                setEmgsFailures(0);
+
+                if (malaysiaIds.length > 0) {
+                    setEmgsRefreshing(true);
+
+                    for (let i = 0; i < malaysiaIds.length; i += EMGS_REFRESH_CONCURRENCY) {
+                        if (ignore) return;
+
+                        const chunk = malaysiaIds.slice(i, i + EMGS_REFRESH_CONCURRENCY);
+                        await Promise.all(
+                            chunk.map(async (id) => {
+                                try {
+                                    const refreshRes = await fetch(`/api/applications/${id}/emgs/fetch`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                    });
+
+                                    let payload: any = null;
+                                    try {
+                                        payload = await refreshRes.json();
+                                    } catch {
+                                        payload = null;
+                                    }
+
+                                    if (!refreshRes.ok || payload?.error) {
+                                        throw new Error(payload?.error || `Failed to refresh EMGS for ${id}.`);
+                                    }
+
+                                    if (!ignore) {
+                                        setEmgsSuccesses((prev) => prev + 1);
+                                    }
+                                } catch {
+                                    if (!ignore) {
+                                        setEmgsFailures((prev) => prev + 1);
+                                    }
+                                } finally {
+                                    if (!ignore) {
+                                        // Increment after each student so the bar advances smoothly.
+                                        setEmgsProcessed((prev) => prev + 1);
+                                    }
+                                }
+                            })
+                        );
+                    }
+
+                    const refreshAllQs = new URLSearchParams({
+                        q,
+                        page: "1",
+                        pageSize: String(FETCH_ALL_BATCH_SIZE),
+                        all: "1",
+                        ...(agentId ? { agentId } : {}),
+                    });
+
+                    const refreshAllRes = await fetch(`/api/applications?` + refreshAllQs.toString(), { cache: "no-store" });
+                    const refreshAllData = await refreshAllRes.json();
+
+                    if (!refreshAllRes.ok) {
+                        throw new Error(refreshAllData?.error || "EMGS refresh completed, but failed to reload refreshed rows.");
+                    }
+
+                    if (!ignore) {
+                        const refreshedRows = Array.isArray(refreshAllData.items) ? refreshAllData.items : [];
+                        setRows(refreshedRows);
+                        setTotal(Number(refreshAllData.total || 0));
+                        setLoadedCount(refreshedRows.length);
+                    }
+
+                    if (!ignore) {
+                        setEmgsRefreshing(false);
+                    }
+                }
+
+                if (!ignore) {
+                    setLoading(false);
+                }
+            } catch (err: any) {
+                if (!ignore) {
+                    setLoadError(err?.message || "Something went wrong while loading applications.");
+                    setEmgsRefreshing(false);
+                    setLoading(false);
+                }
             }
         })();
         return () => { ignore = true; };
-    }, [q, page, pageSize, agentId]);
+    }, [q, page, pageSize, agentId, showAll]);
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const remainingCount = Math.max(0, total - loadedCount);
+    const progressPct = total > 0 ? Math.min(100, Math.round((loadedCount / total) * 100)) : 0;
+    const emgsRemaining = Math.max(0, emgsTotal - emgsProcessed);
+    const emgsProgressPct = emgsTotal > 0 ? Math.min(100, Math.round((emgsProcessed / emgsTotal) * 100)) : 0;
+
+    async function handleExportCsv() {
+        setExportingCsv(true);
+        setLoadError(null);
+
+        try {
+            const qs = new URLSearchParams({
+                q,
+                page: "1",
+                pageSize: String(FETCH_ALL_BATCH_SIZE),
+                all: "1",
+                ...(agentId ? { agentId } : {}),
+            });
+
+            const res = await fetch(`/api/applications?${qs.toString()}`, { cache: "no-store" });
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data?.error || "Failed to export CSV.");
+            }
+
+            const items: ApplicationRow[] = Array.isArray(data.items) ? data.items : [];
+
+            const toCsvCell = (value: unknown) => {
+                const str = String(value ?? "");
+                if (/[",\n]/.test(str)) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            const headers = [
+                "ID",
+                "Created At",
+                "Passport",
+                "First Name",
+                "Last Name",
+                "Country",
+                "University",
+                "Program",
+                "Intake",
+                "Agent",
+                "EMGS Status",
+                "EMGS Percentage",
+                "EMGS Last Update",
+            ];
+
+            const lines = items.map((r) => {
+                const emgsStatus = r.EMGSLink
+                    ? r.EMGSLink.status
+                    : r.agentApproval
+                        ? "WAITING_FOR_EMGS"
+                        : "AGENT_APPROVAL_PENDING";
+                const emgsPercentage = r.EMGSLink ? `${r.EMGSLink.progressPercentage || "0"}%` : "";
+                const emgsLastUpdate = r.EMGSLink?.applicationUpdates?.[0]?.createdAt
+                    ? formatDate(r.EMGSLink.applicationUpdates[0].createdAt)
+                    : "";
+
+                return [
+                    r.id,
+                    formatDate(r.createdAt),
+                    r.passport,
+                    r.firstName,
+                    r.lastName,
+                    r.country,
+                    r.university,
+                    r.program,
+                    r.intake,
+                    r.agent?.name || "",
+                    emgsStatus,
+                    emgsPercentage,
+                    emgsLastUpdate,
+                ]
+                    .map(toCsvCell)
+                    .join(",");
+            });
+
+            const csvContent = [headers.join(","), ...lines].join("\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+            link.href = downloadUrl;
+            link.download = `students-export-${stamp}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (err: any) {
+            setLoadError(err?.message || "Failed to export CSV.");
+        } finally {
+            setExportingCsv(false);
+        }
+    }
 
     /** ---------- helpers.ts ---------- */
     function formatDate(d: string | Date) {
@@ -167,16 +438,85 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
 
             <div className="flex items-center justify-between gap-3">
                 <div className="text-sm text-slate-600">
-                    {loading ? "Loading…" : <>Showing <strong>{total ? (page-1)*pageSize + 1 : 0}</strong>–<strong>{Math.min(page*pageSize, total)}</strong> of <strong>{total}</strong></>}
+                    {loading ? (showAll
+                            ? <>Loaded <strong>{loadedCount}</strong> of <strong>{total}</strong> • <strong>{remainingCount}</strong> remaining</>
+                            : "Loading…")
+                        : emgsRefreshing
+                            ? <>EMGS updated <strong>{emgsProcessed}</strong> of <strong>{emgsTotal}</strong> Malaysian students • <strong>{emgsRemaining}</strong> remaining</>
+                        : showAll
+                        ? <>Showing <strong>{rows.length}</strong> of <strong>{total}</strong> (all loaded)</>
+                        : <>Showing <strong>{total ? (page-1)*pageSize + 1 : 0}</strong>–<strong>{Math.min(page*pageSize, total)}</strong> of <strong>{total}</strong></>}
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowAll((v) => !v);
+                            setPage(1);
+                        }}
+                        disabled={loading || emgsRefreshing}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {showAll ? "Back to Pages" : "Fetch All Students"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleExportCsv}
+                        disabled={loading || emgsRefreshing || exportingCsv}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {exportingCsv ? "Exporting CSV..." : "Export CSV"}
+                    </button>
                     <label className="text-sm text-slate-600">Rows:</label>
-                    <select className="rounded-md border border-slate-300 px-2 py-1 text-sm" value={pageSize} onChange={(e)=>{setPageSize(Number(e.target.value)); setPage(1);}}>
+                    <select className="rounded-md border border-slate-300 px-2 py-1 text-sm disabled:opacity-60" value={pageSize} onChange={(e)=>{setPageSize(Number(e.target.value)); setPage(1);}} disabled={showAll}>
                         {[5,10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
-                    <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />
+                    {!showAll && <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />}
                 </div>
             </div>
+
+            {showAll && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between text-xs font-medium text-slate-600">
+                        <span>{loading ? "Step 1/2: Fetching all students" : emgsRefreshing ? "Step 2/2: Refreshing EMGS status (Malaysia only)" : "Fetch and EMGS refresh complete"}</span>
+                        <span>
+                            {emgsTotal > 0 && !loading ? `${emgsProcessed}/${emgsTotal} EMGS refreshed` : `${loadedCount}/${total} loaded`}
+                        </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div
+                            className="h-full bg-rose-700 transition-[width] duration-500 ease-out"
+                            style={{ width: `${loading ? progressPct : emgsRefreshing ? emgsProgressPct : 100}%` }}
+                        />
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
+                        <div className="rounded-md bg-slate-50 px-2 py-1">
+                            Students loaded: <strong>{loadedCount}</strong>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-2 py-1">
+                            EMGS updated: <strong>{emgsProcessed}</strong>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-2 py-1">
+                            Remaining: <strong>{loading ? remainingCount : emgsRemaining}</strong>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500">
+                        {loading
+                            ? `${remainingCount} records remaining to load`
+                            : emgsRefreshing
+                                ? `${emgsRemaining} Malaysian student records remaining for EMGS refresh`
+                                : emgsTotal > 0
+                                    ? `EMGS refresh done: ${emgsSuccesses} successful, ${emgsFailures} failed.`
+                                    : "No Malaysia destination students found for EMGS refresh."}
+                    </div>
+                </div>
+            )}
+
+            {loadError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {loadError}
+                </div>
+            )}
 
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="min-w-[900px] w-full border-collapse text-left text-sm">
@@ -196,10 +536,10 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                     </thead>
                     <tbody>
                     {!loading && rows.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">No applications found.</td></tr>
+                        <tr><td colSpan={totalColumns} className="px-4 py-12 text-center text-slate-500">No applications found.</td></tr>
                     )}
                     {loading && (
-                        <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">Loading…</td></tr>
+                        <tr><td colSpan={totalColumns} className="px-4 py-12 text-center text-slate-500">Loading…</td></tr>
                     )}
                     {rows.map((r) => (
                         <tr key={r.id} className="border-top border-slate-100">
@@ -227,26 +567,18 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                                         />
 
                                         <div className="flex flex-col">
-        <span className={`text-xs uppercase tracking-wide font-semibold ${statusColor(r.EMGSLink.status)}`}>
-          {r.EMGSLink.status || "PENDING"}
-        </span>
+                                            <span className={`text-xs uppercase tracking-wide font-semibold ${statusColor(r.EMGSLink.status)}`}>
+                                                {r.EMGSLink.status || "PENDING"}
+                                            </span>
 
-                                            {/* last update time from applicationUpdates */}
-                                            {(() => {
-                                                const last = (r.EMGSLink.applicationUpdates || [])
-                                                    .slice()
-                                                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                                            {r.EMGSLink?.applicationUpdates?.[0]?.createdAt ? (
+                                                <span className="text-xs text-slate-500">
+                                                    Last update: {formatDate(r.EMGSLink.applicationUpdates[0].createdAt)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">No timeline updates yet</span>
+                                            )}
 
-                                                return last ? (
-                                                    <span className="text-xs text-slate-500">
-              Last update: {formatDate(last.createdAt)}
-            </span>
-                                                ) : (
-                                                    <span className="text-xs text-slate-400">No timeline updates yet</span>
-                                                );
-                                            })()}
-
-                                            {/* Claim messaging for "Application completed" */}
                                             {(() => {
                                                 const updates = r.EMGSLink.applicationUpdates || [];
                                                 if (updates.length === 1 && updates[0].status === "Application completed") {
@@ -258,27 +590,26 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
                                                     if (elapsed < 14) {
                                                         const remaining = 14 - elapsed;
                                                         return (
-                                                            <span className="text-xs text-amber-700 mt-1">
-                  Claim will be requested automatically in {remaining} day{remaining === 1 ? "" : "s"} (on{" "}
-                                                                {formatDate(claimAt)}).
-                </span>
-                                                        );
-                                                    } else {
-                                                        return (
-                                                            <span className="text-xs text-emerald-700 mt-1">
-                  Claim has been requested.
-                </span>
+                                                            <span className="mt-1 text-xs text-amber-700">
+                                                                Claim will be requested automatically in {remaining} day{remaining === 1 ? "" : "s"} (on {formatDate(claimAt)}).
+                                                            </span>
                                                         );
                                                     }
+
+                                                    return (
+                                                        <span className="mt-1 text-xs text-emerald-700">
+                                                            Claim has been requested.
+                                                        </span>
+                                                    );
                                                 }
                                                 return null;
                                             })()}
                                         </div>
                                     </div>
                                 ) : r.agentApproval ? (
-                                    <span className="text-slate-500 font-medium">Waiting for EMGS</span>
+                                    <span className="font-medium text-slate-500">Waiting for EMGS</span>
                                 ) : (
-                                    <span className="text-amber-700 font-medium">Agent Approval Pending</span>
+                                    <span className="font-medium text-amber-700">Agent Approval Pending</span>
                                 )}
                             </TD>
                             <TD>
@@ -308,8 +639,20 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
             </div>
 
             <div className="flex items-center justify-between text-sm text-slate-600">
-                <div>Page <strong>{page}</strong> / {totalPages}</div>
-                <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />
+                {showAll ? (
+                    <div>
+                        {loading
+                            ? `Loading all records: ${loadedCount}/${total}`
+                            : emgsRefreshing
+                                ? `Refreshing EMGS: ${emgsProcessed}/${emgsTotal}`
+                                : "All matching records loaded"}
+                    </div>
+                ) : (
+                    <>
+                        <div>Page <strong>{page}</strong> / {totalPages}</div>
+                        <Pager page={page} totalPages={totalPages} onPage={(p)=>setPage(p)} />
+                    </>
+                )}
             </div>
         </div>
     );

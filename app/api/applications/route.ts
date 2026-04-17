@@ -15,9 +15,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
     const agentId = (searchParams.get("agentId") || "").trim();
+    const fetchAll = searchParams.get("all") === "1";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "10")));
-    const skip = (page - 1) * pageSize;
+    const skip = fetchAll ? undefined : (page - 1) * pageSize;
+    const take = fetchAll ? undefined : pageSize;
     const token = (await cookies()).get("tjs_session")?.value;
     if(!token)
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,7 +63,7 @@ export async function GET(req: Request) {
         prisma.application.findMany({
             where,
             skip,
-            take: pageSize,
+            take,
             orderBy: { createdAt: "desc" },
             include: {
                 agent: true,
@@ -81,7 +83,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
         page,
-        pageSize,
+        pageSize: fetchAll ? total : pageSize,
+        all: fetchAll,
         total,
         items: items.map((x) => ({
             id: x.id,
