@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TJS StudySteps - Student Application & EMGS Tracking Platform
+
+This project is a Next.js-based operations platform for education consultants helping students apply to study abroad (with a strong focus on Malaysia).
+
+It centralizes student applications, agent workflows, approval states, EMGS visa tracking, and reporting into one system so teams can move from inquiry to enrollment with better visibility.
+
+## Why This Project Exists
+
+Education consultancies typically manage student progress across multiple disconnected tools:
+
+- forms and spreadsheets for student intake
+- messaging apps for agent updates
+- external portals for visa progress
+- manual status copy/paste for reporting
+
+This causes delays, data mismatch, and poor tracking quality.
+
+### The EMGS Tracking Problem
+
+For students going to Malaysia, EMGS progress is essential but difficult to manage at scale:
+
+- staff must check records one by one
+- status timelines are hard to consolidate
+- updates are easy to miss
+- operations teams often maintain separate Excel trackers manually
+
+As volume grows, this becomes an operational bottleneck.
+
+## Solution Implemented Here
+
+TJS StudySteps provides a structured workflow with role-based access:
+
+- applicants submit study applications
+- agents review and approve applications
+- super-admin manages operations across applications, agents, and invoices
+- EMGS status can be fetched and synchronized directly into the platform
+
+### EMGS Syncing Capabilities
+
+The system includes automated EMGS syncing to reduce manual work:
+
+- per-student EMGS fetch endpoint
+- batch sync for multiple Malaysian-destination applications
+- status progression storage (percentage + timeline updates + issues)
+- UI progress indicators while fetching large batches
+
+This helps teams keep records fresh and actionable without repetitive portal checks.
+
+### Excel Update Workflow (Operations Feature)
+
+Super-admin users can upload an `.xlsx` workbook and update a selected sheet using live EMGS data:
+
+1. upload Excel file
+2. choose which worksheet to update
+3. locate `Passport_No` and `Visa_Status` columns
+4. match passport values with stored student records
+5. write EMGS percentage values into `Visa_Status` (e.g., `75%`, `100%`)
+6. download updated `.xlsx`
+
+Only the selected sheet cells are updated for this mapping. The rest of the workbook remains unchanged.
+
+## How This Helps Teams
+
+This project improves day-to-day student operations by:
+
+- reducing manual EMGS tracking effort
+- improving tracking accuracy across student records
+- speeding up status reporting for internal teams and leadership
+- enabling export-ready updates for external Excel workflows
+- giving agents and admins a single operational source of truth
+
+## Core Stack
+
+- Next.js (App Router)
+- React + TypeScript
+- Prisma + PostgreSQL
+- Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Configure environment variables in `.env` (database, auth, email, and any integration keys).
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Key Areas in the Codebase
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `app/super-admin` - super-admin dashboards and workflows
+- `components/applications` - student application management UI
+- `app/api/applications` - application + EMGS-related APIs
+- `lib/emgs.ts` - EMGS fetch and synchronization logic
+- `app/api/applications/excel-emgs/route.ts` - Excel sheet EMGS updater endpoint
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- EMGS syncing applies to Malaysia-destination applications.
+- Role-based session checks are used across protected workflows.
