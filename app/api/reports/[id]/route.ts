@@ -1,16 +1,15 @@
 // app/api/reports/[id]/route.ts
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { prismaEdge } from "@/lib/prisma-edge";
+import { prisma, purgeExpiredReports } from "@/lib/prisma";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
     const { id } = await ctx.params;
-    const prisma = prismaEdge();
 
     // Purge expired (edge-safe approach: one delete, no logs)
-    await prisma.report.deleteMany({ where: { expiresAt: { lte: new Date() } } });
+    await purgeExpiredReports();
 
     const report = await prisma.report.findUnique({
         where: { id },
