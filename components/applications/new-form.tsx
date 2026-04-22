@@ -21,8 +21,9 @@ const phoneOk = (s: string) => s.trim().length >= 7;
 /* - type for resolved agent preview - */
 type AgentPreview = { id: string; name: string; code: string; email?: string | null; phone?: string | null } | null;
 
-export default function ApplicationNewForm() {
+export default function ApplicationNewForm({ mode = "standard" }: { mode?: "standard" | "superadmin" }) {
     const router = useRouter();
+    const isSuperAdminMode = mode === "superadmin";
 
     /* identity */
     const [firstName, setFirstName] = useState("");
@@ -34,7 +35,7 @@ export default function ApplicationNewForm() {
     /* study */
     const [nationality, setNationality] = useState("");
     const [visaCity, setVisaCity]       = useState("");
-    const [country, setCountry]         = useState("");
+    const [country, setCountry]         = useState(isSuperAdminMode ? "Malaysia" : "");
     const [university, setUniversity]   = useState("");
     const [program, setProgram]         = useState("");
     const [intake, setIntake]           = useState("");
@@ -91,14 +92,16 @@ export default function ApplicationNewForm() {
     /* validation */
     const nameValid     = firstName.trim().length > 0 && lastName.trim().length > 0;
     const passportValid = passportOk(passport);
-    const emailValid    = emailOk(email);
-    const phoneValid    = phoneOk(phone);
+    const emailValid    = isSuperAdminMode ? (!email.trim() || emailOk(email)) : emailOk(email);
+    const phoneValid    = isSuperAdminMode ? (!phone.trim() || phoneOk(phone)) : phoneOk(phone);
     const reqFilled =
         nationality.trim() && visaCity.trim() && country.trim() &&
         university.trim() && program.trim() && intake.trim() &&
         agentReferralCode.trim() && username.trim() && password.trim();
 
-    const allValid = nameValid && passportValid && emailValid && phoneValid && reqFilled;
+    const allValid = isSuperAdminMode
+        ? nameValid && passportValid && emailValid && phoneValid
+        : nameValid && passportValid && emailValid && phoneValid && reqFilled;
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -133,14 +136,15 @@ export default function ApplicationNewForm() {
     function resetForm() {
         setFirstName(""); setLastName(""); setPassport("");
         setEmail(""); setPhone("");
-        setNationality(""); setVisaCity(""); setCountry("");
+        setNationality(""); setVisaCity(""); setCountry(isSuperAdminMode ? "Malaysia" : "");
         setUniversity(""); setProgram(""); setIntake("");
         setAgentReferralCode(""); setAgentResolved(null);
         setUsername(""); setPassword(genPassword());
         setTouched(false); setErrorMsg(null); setCreatedId(null);
     }
 
-    const canSubmit = allValid && !pending && agentResolved;
+    const hasValidAgentSelection = !agentReferralCode.trim() || !!agentResolved;
+    const canSubmit = allValid && !pending && (isSuperAdminMode ? hasValidAgentSelection : !!agentResolved);
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -150,7 +154,9 @@ export default function ApplicationNewForm() {
                     <div className="items-start">
                         <h1 className="text-2xl font-bold text-slate-900">New Application</h1>
                         <p className="text-sm text-slate-600">
-                            Enter applicant and study details. A notification is emailed to the agent and applicant after submission.
+                            {isSuperAdminMode
+                                ? "Create an application quickly. Only applicant name and passport are mandatory, and destination defaults to Malaysia."
+                                : "Enter applicant and study details. A notification is emailed to the agent and applicant after submission."}
                         </p>
                     </div>
                     <div className="flex items-start gap-2">
@@ -178,15 +184,15 @@ export default function ApplicationNewForm() {
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase tracking-wide focus:border-rose-600 focus:ring-rose-600"
                                            value={passport} onChange={(e)=>setPassport(e.target.value)} placeholder="e.g., AB1234567" />
                                 </Field>
-                                <Field label="Email" required error={touched && !emailValid}>
+                                <Field label="Email" required={!isSuperAdminMode} error={touched && !emailValid}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="applicant@example.com" />
                                 </Field>
-                                <Field label="Phone" required error={touched && !phoneValid}>
+                                <Field label="Phone" required={!isSuperAdminMode} error={touched && !phoneValid}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="+92 300 1234567" />
                                 </Field>
-                                <Field label="Nationality" required>
+                                <Field label="Nationality" required={!isSuperAdminMode}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={nationality} onChange={(e)=>setNationality(e.target.value)} placeholder="e.g., Pakistan" />
                                 </Field>
@@ -196,7 +202,7 @@ export default function ApplicationNewForm() {
                         {/* Study */}
                         <Section title="Study Preferences">
                             <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-                                <Field label="Single-Entry Visa (Processing City)" required>
+                                <Field label="Single-Entry Visa (Processing City)" required={!isSuperAdminMode}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={visaCity} onChange={(e)=>setVisaCity(e.target.value)} placeholder="e.g., Islamabad" />
                                 </Field>
@@ -204,15 +210,15 @@ export default function ApplicationNewForm() {
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={country} onChange={(e)=>setCountry(e.target.value)} placeholder="e.g., Malaysia" />
                                 </Field>
-                                <Field label="University" required>
+                                <Field label="University" required={!isSuperAdminMode}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={university} onChange={(e)=>setUniversity(e.target.value)} placeholder="e.g., Taylor’s University" />
                                 </Field>
-                                <Field label="Program" required>
+                                <Field label="Program" required={!isSuperAdminMode}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={program} onChange={(e)=>setProgram(e.target.value)} placeholder="e.g., BSc (Hons) Computer Science" />
                                 </Field>
-                                <Field label="Intake" required>
+                                <Field label="Intake" required={!isSuperAdminMode}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-600 focus:ring-rose-600"
                                            value={intake} onChange={(e)=>setIntake(e.target.value)} placeholder="e.g., September 2026" />
                                 </Field>
@@ -222,8 +228,8 @@ export default function ApplicationNewForm() {
                         {/* Agent */}
                         <Section title="Agent Referral">
                             <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-                                <Field label="Agent Referral Code" required error={touched && !agentReferralCode.trim()}
-                                       hint="Enter the code shared by the counsellor (e.g., TJS-ISB-001)">
+                                    <Field label="Agent Referral Code" required={!isSuperAdminMode} error={touched && agentReferralCode.trim().length > 0 && !agentResolved}
+                                        hint={isSuperAdminMode ? "Optional. If provided, it must resolve to a valid agent code." : "Enter the code shared by the counsellor (e.g., TJS-ISB-001)"}>
                                     <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-rose-600 focus:ring-rose-600"
                                            value={agentReferralCode} onChange={(e)=>setAgentReferralCode(e.target.value)} placeholder="TJS-ISB-001" />
                                 </Field>
@@ -246,7 +252,9 @@ export default function ApplicationNewForm() {
                             </div>
 
                             <p className="mt-3 text-xs text-slate-500">
-                                The application cannot be submitted without a valid agent referral code. After submission, the agent must approve to initiate the formal process.
+                                {isSuperAdminMode
+                                    ? "Agent referral is optional in super-admin mode. If you provide a code, the application will be linked to that agent."
+                                    : "The application cannot be submitted without a valid agent referral code. After submission, the agent must approve to initiate the formal process."}
                             </p>
                         </Section>
 
@@ -287,7 +295,9 @@ export default function ApplicationNewForm() {
                         {errorMsg && <p className="text-sm text-rose-700">{errorMsg}</p>}
                         {!allValid && touched && (
                             <p className="text-sm text-amber-700">
-                                Please complete all required fields and ensure email/phone/passport are valid.
+                                {isSuperAdminMode
+                                    ? "Please provide applicant first name, last name, passport, and ensure any entered email or phone values are valid."
+                                    : "Please complete all required fields and ensure email/phone/passport are valid."}
                             </p>
                         )}
 

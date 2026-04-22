@@ -9,6 +9,12 @@ import {x} from "tinyexec";
 
 export const dynamic = "force-dynamic";
 
+function parseEmgsProgressPercentage(value: string | null | undefined) {
+    if (!value) return null;
+    const numeric = Number.parseFloat(String(value).replace(/[^\d.]/g, ""));
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
 // GET /api/applications?q=&agentId=&page=1&pageSize=10
 export async function GET(req: Request) {
     const prisma = prismaEdge();
@@ -58,28 +64,31 @@ export async function GET(req: Request) {
         where.agent = { username };
     }
 
-    const [total, items] = await Promise.all([
-        prisma.application.count({ where }),
-        prisma.application.findMany({
-            where,
-            skip,
-            take,
-            orderBy: { createdAt: "desc" },
-            include: {
-                agent: true,
-                EMGSLink: {
-                    include: {
-                        applicationUpdates: {
-                            take: 1,
-                            orderBy: {
-                                createdAt: "desc"
-                            }
+    const allItems = await prisma.application.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include: {
+            agent: true,
+            EMGSLink: {
+                include: {
+                    applicationUpdates: {
+                        take: 1,
+                        orderBy: {
+                            createdAt: "desc"
                         }
                     }
                 }
-            },
-        }),
-    ]);
+            }
+        },
+    });
+
+    const filteredItems = allItems.filter((item) => {
+        const progress = parseEmgsProgressPercentage(item.EMGSLink?.progressPercentage);
+        return progress !== null && progress < 85;
+    });
+
+    const total = filteredItems.length;
+    const items = fetchAll ? filteredItems : filteredItems.slice(skip ?? 0, (skip ?? 0) + (take ?? total));
 
     return NextResponse.json({
         page,
@@ -109,14 +118,19 @@ export async function GET(req: Request) {
 // POST /api/applications
 export async function POST(req: Request) {
     const data = await req.json();
+    const token = (await cookies()).get("tjs_session")?.value;
+    const session = token ? await verifySession(token) : null;
+    const isSuperAdmin = session?.role === "superadmin";
 
     // Basic required fields
-    const required = [
-        "firstName","lastName","passport",
-        "nationality","visaCity","country",
-        "university","program","intake",
-        "agentReferralCode","username","password","email","phone"
-    ] as const;
+    const required = isSuperAdmin
+        ? (["firstName", "lastName", "passport"] as const)
+        : ([
+            "firstName","lastName","passport",
+            "nationality","visaCity","country",
+            "university","program","intake",
+            "agentReferralCode","username","password","email","phone"
+        ] as const);
 
     for (const key of required) {
         if (!data[key] || String(data[key]).trim() === "") {
@@ -125,34 +139,54 @@ export async function POST(req: Request) {
     }
 
     try {
-        const agent = await prisma.agent.findUnique({
-            where: { code: data.agentReferralCode },
-            select: { id: true, name: true, email: true, code: true },
-        });
+        const normalizedAgentReferralCode = String(data.agentReferralCode || "").trim();
+        const agent = normalizedAgentReferralCode
+            ? await prisma.agent.findUnique({
+                where: { code: normalizedAgentReferralCode },
+                select: { id: true, name: true, email: true, code: true },
+            })
+            : null;
 
-        if(!agent) {
+        if (normalizedAgentReferralCode && !agent) {
             return NextResponse.json({ error: "Invalid agent username" }, { status: 400 });
         }
+
+        const firstName = String(data.firstName || "").trim();
+        const lastName = String(data.lastName || "").trim();
+        const passport = String(data.passport || "").trim();
+        const email = String(data.email || "").trim();
+        const phone = String(data.phone || "").trim();
+        const nationality = String(data.nationality || "").trim();
+        const visaCity = String(data.visaCity || "").trim();
+        const country = String(data.country || (isSuperAdmin ? "Malaysia" : "")).trim() || (isSuperAdmin ? "Malaysia" : "");
+        const university = String(data.university || "").trim();
+        const program = String(data.program || "").trim();
+        const intake = String(data.intake || "").trim();
+        const generatedUsernameBase = `${firstName || "student"}.${lastName || "applicant"}`
+            .toLowerCase()
+            .replace(/[^a-z0-9.]/g, "");
+        const username = String(data.username || generatedUsernameBase || "student").trim();
+        const password = String(data.password || Math.random().toString(36).slice(2, 14)).trim();
 
         // Create the application
         const created = await prisma.application.create({
             data: {
-                firstName: data.firstName,
-                lastName: data.lastName,
-                passport: data.passport,
-                phone: data.phone,
-                email: data.email,
-                nationality: data.nationality,
-                visaCity: data.visaCity,
-                country: data.country,
-                university: data.university,
-                program: data.program,
-                intake: data.intake,
-                agentReferralCode: data.agentReferralCode,
+                firstName,
+                lastName,
+                passport,
+                phone,
+                email,
+                nationality,
+                visaCity,
+                country,
+                university,
+                program,
+                intake,
+                agentReferralCode: normalizedAgentReferralCode,
                 agentApproval: false,
-                username: data.username,
-                password: data.password,
-                agentId: agent.id ?? null,
+                username,
+                password,
+                agentId: agent?.id ?? null,
             },
             select: {
                 id: true, createdAt: true, email: true, phone: true,

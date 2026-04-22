@@ -411,24 +411,6 @@ export default function ApplicationsListing({ params }: { params: Usable<{ agent
 
     return (
         <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
-                <div className="admin-kpi rounded-2xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Visible records</div>
-                    <div className="mt-2 text-2xl font-semibold text-slate-950">{total}</div>
-                    <div className="mt-1 text-sm text-slate-600">Applications matching the current filters.</div>
-                </div>
-                <div className="admin-kpi rounded-2xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Malaysia EMGS queue</div>
-                    <div className="mt-2 text-2xl font-semibold text-slate-950">{emgsTotal}</div>
-                    <div className="mt-1 text-sm text-slate-600">Students eligible for live EMGS refresh.</div>
-                </div>
-                <div className="admin-kpi rounded-2xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Current mode</div>
-                    <div className="mt-2 text-2xl font-semibold text-slate-950">{showAll ? "Live sweep" : "Paged"}</div>
-                    <div className="mt-1 text-sm text-slate-600">Switch between focused review and full refresh runs.</div>
-                </div>
-            </div>
-
             <div className="admin-panel-strong rounded-[28px] p-5 md:p-6">
                 <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
                     <div>

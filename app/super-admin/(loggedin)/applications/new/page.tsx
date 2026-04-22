@@ -3,7 +3,7 @@ import ApplicationNewForm from "@/components/applications/new-form";
 
 function NewApplicationPage() {
     return (
-        <ApplicationNewForm />
+        <ApplicationNewForm mode="superadmin" />
     );
 }
 
